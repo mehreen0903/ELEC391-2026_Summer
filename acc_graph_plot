@@ -1,0 +1,57 @@
+from serial import Serial
+import matplotlib.pyplot as plt
+import time
+
+# Connect to Arduino
+ser = Serial('COM5', 9600)
+
+# Turn on interactive plotting
+plt.ion()
+
+# Create graph
+fig, ax = plt.subplots()
+
+ax.set_title('Accelerometer Tilt')
+ax.set_xlabel('Time (s)')
+ax.set_ylabel('Angle (Degrees)')
+
+# Set fixed y-axis range
+ax.set_ylim(-5, 5)
+
+# Store graph data
+x_data = []
+acc_data = []   # Accelerometer angle
+
+# Create two lines with labels
+line_acc, = ax.plot(x_data, acc_data, color='blue')
+
+ax.legend()
+
+start_time = time.time()  # Record start time
+
+while True:
+    try:
+        # Read serial data
+        data = ser.readline().decode().strip()
+
+        acc_angle = float(data) +0.2
+
+        elapsed = time.time() - start_time  # Seconds since start
+
+        # Add new data points
+        x_data.append(elapsed)
+        acc_data.append(acc_angle)
+
+        # Update both graph lines
+        line_acc.set_data(x_data, acc_data)
+
+        # Move x-axis as data grows
+        ax.set_xlim(0, elapsed + 1)
+
+        # Redraw graph
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+    except KeyboardInterrupt:
+        ser.close()
+        break
