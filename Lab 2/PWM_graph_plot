@@ -1,0 +1,56 @@
+from serial import Serial
+import matplotlib.pyplot as plt
+import time
+
+ser = Serial('COM5', 9600)
+
+plt.ion() # interactive plotting
+
+fig, ax = plt.subplots() # Create graph
+
+ax.set_title('PWM Value Over Time')
+ax.set_xlabel('Time (s)')
+ax.set_ylabel('PWM Value')
+
+# Set fixed y-axis range
+ax.set_ylim(0, 255) #PWM range 0-255
+
+# Store graph data
+x_data = []
+pwm_data = []   # PWM value
+
+# Create line with label
+line_PWM, = ax.plot(x_data, pwm_data, label='PWM Value', color='blue')
+ax.legend()
+
+start_time = time.time()  # Record start time
+
+while True:
+    try:
+        # Read serial data
+        data = ser.readline().decode().strip()
+
+        pwm_val = float(data) #parse single value
+
+        print(f"{pwm_val}") #print value to terminal
+
+
+        elapsed = time.time() - start_time  # Seconds since start
+
+        # Add new data points
+        x_data.append(elapsed)
+        pwm_data.append(pwm_val)
+
+        # Update the graph line
+        line_PWM.set_data(x_data, pwm_data)
+
+        # Move x-axis as data grows
+        ax.set_xlim(0, elapsed + 1)
+
+        # Redraw graph
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+    except KeyboardInterrupt:
+        ser.close()
+        break
