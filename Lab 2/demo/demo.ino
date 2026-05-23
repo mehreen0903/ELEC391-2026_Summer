@@ -10,14 +10,25 @@ const int enc2A = 9;  // Motor 2 encoder channel A
 const int enc2B = 10;   // Motor 2 encoder channel B
 
 // ── SET YOUR PWM HERE (0–255) ─────────────────────────────────────
-int pwm1 = 0; //db is 15, -16, usable range is 240
-int pwm2 = 0; //db is 19, -16
+// int pwm1 = 0; //db is 15, -16, usable range is 240
+// int pwm2 = 0; //db is 19, -16
 int db1f = 36;
 int db1r = 70;
 int db2f = 35;
 int db2r = 70;
-//int motor1PWM = (int)(pwm1 / 100.0 * 255);  //
-//int motor2PWM = (int)(pwm2 / 100.0 * 255);  //
+
+int prev1A;
+int prev1B;
+int prev2A;
+int prev2B;
+
+int curr1A;
+int curr1B;
+int curr2A;
+int curr2B;
+
+int encCount1;
+int encCount2;
 
 int  currentPWM1 = 0;
 int  currentPWM2 = 0;
@@ -56,6 +67,19 @@ void setMotor2(int pwm) {
     }
   else { digitalWrite(motor2in1, HIGH); digitalWrite(motor2in2, HIGH); }
   Serial.print("M2="); Serial.println(pwm);
+}
+
+// set encoder increment
+int countEncoder(int currA, int currB, int prevA, int prevB) {
+  if (currB != prevB){
+      if (currA!=currB){
+        return -2; //CCW
+      } else {
+        return 2; //CW
+      } //CW
+  } else {
+    return 0;
+  }
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
