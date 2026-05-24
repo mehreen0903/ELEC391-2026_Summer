@@ -39,7 +39,8 @@ void setMotor1(int pwm) {
     }
 
   else if (pwm < 0) { 
-    pwm = ((float)((255 - db1r) * pwm/100)) + db1r; //calculates usable range according to db in reverse direction
+    pwm = (int)((db1r + (100-db1r) * (float)(-pwm/100)) / 100 * 255);
+    //calculates usable range according to db in reverse direction
     digitalWrite(motor1in2, LOW);  // in2 = 0
     analogWrite(motor1in1, pwm);   // in1 = pwm for reverse
     }
@@ -59,7 +60,8 @@ void setMotor2(int pwm) {
     }
 
   else if (pwm < 0) { 
-    pwm = ((float)((255 - db2r) * pwm/100)) + db2r; //calculates usable range according to db in reverse direction
+    pwm = (int)((db2r + (100-db2r) * (float)(-pwm/100)) / 100 * 255);
+    //calculates usable range according to db in reverse direction
     digitalWrite(motor2in1, LOW);  // in1 = 0
     analogWrite(motor2in2, pwm);   // in2 = pwm for reverse
     }
@@ -73,7 +75,7 @@ void setMotor2(int pwm) {
 int countEncoder(int currA, int currB, int prevA, int prevB) {
   if (currB != prevB){
       if (currA != currB){
-        return -2; //CCW
+        return -2; //CCW, 2 to account for both
       } else {
         return 2; //CW
       } //CW
@@ -87,7 +89,7 @@ void setup() {
   Serial.begin(9600);
   while (!Serial);
 
-  pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
+  pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT); // sets pin to i/o
   pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
   pinMode(ledPin,    OUTPUT);
 
@@ -97,25 +99,25 @@ void setup() {
   Serial.print("Running M1="); Serial.print(pwm1);
   Serial.print(" M2=");        Serial.println(pwm2);
 
-  setMotor1(pwm1);
-  setMotor2(pwm2);
+  setMotor1(pwm1); //sets motor 1 to pwm1
+  setMotor2(pwm2); //sets motor 2 to pwm2
 
-  prev1A = digitalRead(enc1A);
+  prev1A = digitalRead(enc1A); // reads initial encoder states
   prev1B = digitalRead(enc1B); 
   prev2A = digitalRead(enc2A);
   prev2B = digitalRead(enc2B);
-  encCount1 = 0;
+  encCount1 = 0; // initalise to 0
   encCount2 = 0;
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
 void loop() {
-  curr1A = digitalRead(enc1A);
+  curr1A = digitalRead(enc1A); // reads new encoder states
   curr1B = digitalRead(enc1B);
   curr2A = digitalRead(enc2A);
   curr2B = digitalRead(enc2B);
 
-  encCount1 += countEncoder(curr1A, curr1B, prev1A, prev1B); 
+  encCount1 += countEncoder(curr1A, curr1B, prev1A, prev1B);  
   encCount2 -= countEncoder(curr2A, curr2B, prev2A, prev2B); 
   
   Serial.print("E1 = "); Serial.print(encCount1); //figure out spacing

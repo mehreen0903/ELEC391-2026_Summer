@@ -16,8 +16,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 36, db1r = 70;
-int db2f = 35, db2r = 70;
+int db1f = 36, db1r = 40;
+int db2f = 35, db2r = 35;
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -26,7 +26,7 @@ volatile long encCount2 = 0;
 // -- Acc and gyro vars ------------------------------------------
 float angleGyroX;
 float angleGyroPrev;
-float angleComp;
+float angleComp = 0;
 float lastLoopTime = 0;
 float ax, ay, az;
 float degreesAccY = 0;
@@ -65,68 +65,90 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
 
 // ── H-Bridge Control ──────────────────────────────────────────────
 void setMotor1(int pwm) {
-  pwm = constrain(pwm, -255, 255);
-  if (pwm > 1) {
-    pwm = (int)(((255 - db1f) * pwm / 100.0) + db1f);
-    analogWrite(motor1in2, pwm);
-    digitalWrite(motor1in1, LOW);
-  } else if (pwm < -1) {
-    pwm = (int)((db1r + (100 - db1r) * (-pwm / 100.0)) / 100.0 * 255);
-    digitalWrite(motor1in2, LOW);
-    analogWrite(motor1in1, pwm);
+  pwm = constrain(pwm, -100, 100);
+  if (pwm > 0) {
+    int out = (int)(((255 - db1f) * pwm / 100.0) + db1f);
+    analogWrite(motor1in2, out);
+    analogWrite(motor1in1, 0);
+  } else if (pwm < 0) {
+    int out = (int)(((255 - db1r) * (-pwm) / 100.0) + db1r);
+    analogWrite(motor1in2, 0);
+    analogWrite(motor1in1, out);
   } else {
-    digitalWrite(motor1in1, HIGH);
-    digitalWrite(motor1in2, HIGH);
+    analogWrite(motor1in1, 255);
+    analogWrite(motor1in2, 255);
   }
-  Serial.print("M1="); Serial.print(pwm);
+  //Serial.print(" M1="); Serial.print(pwm);
 }
 
 void setMotor2(int pwm) {
-  pwm = constrain(pwm, -255, 255);
-  if (pwm > 1) {
-    pwm = (int)(((255 - db2f) * pwm / 100.0) + db2f);
-    analogWrite(motor2in1, pwm);
-    digitalWrite(motor2in2, LOW);
-  } else if (pwm < -1) {
-    pwm = (int)((db2r + (100 - db2r) * (-pwm / 100.0)) / 100.0 * 255);
-    digitalWrite(motor2in1, LOW);
-    analogWrite(motor2in2, pwm);
+  pwm = constrain(pwm, -100, 100);
+  if (pwm > 0) {
+    int out = (int)(((255 - db2f) * pwm / 100.0) + db2f);
+    analogWrite(motor2in1, out);
+    analogWrite(motor2in2, 0);
+  } else if (pwm < 0) {
+    int out = (int)(((255 - db2r) * (-pwm) / 100.0) + db2r);
+    analogWrite(motor2in1, 0);
+    analogWrite(motor2in2, out);
   } else {
-    digitalWrite(motor2in1, HIGH);
-    digitalWrite(motor2in2, HIGH);
+    analogWrite(motor2in1, 255);
+    analogWrite(motor2in2, 255);
   }
-  Serial.print("  M2="); Serial.print(pwm);
+  //Serial.print("  M2="); Serial.print(pwm);
 }
 
+// float angle() {
+//   float gx, gy, gz;
+//   float ax, ay, az;
+//   float k = 0.91;
+//   if (IMU.accelerationAvailable()) {
+//     IMU.readAcceleration(ax, ay, az);
+//     degreesAccY = -1*atan(ay/az)*180/PI;
+//     //Serial.println(degreesAccY, 4);
+//   }
+//   if (IMU.gyroscopeAvailable()) {
+//     IMU.readGyroscope(gx, gy, gz);
+//     float currentLoopTime = millis();
+//     float loopDuration = currentLoopTime - lastLoopTime;
+//     lastLoopTime = currentLoopTime;
+//     angleGyroX = degreesAccY + gx * (loopDuration/1000);
+//     angleComp = (k*(angleGyroX)) + ((1-k)*degreesAccY);
+//     return angleComp;
+//     // Serial.print(degreesAccY, 4);
+//     // Serial.print(",");
+//     // Serial.print(angleGyroX, 4);
+//     // Serial.print(",");
+//     // Serial.println(angleComp, 4);
+//   }
+//  // delay(300);
+// }
 float angle() {
   float gx, gy, gz;
   float ax, ay, az;
-  int k = 0.1;
+  float k = 0.91;
 
-  if (IMU.accelerationAvailable()) {
+  // Only compute if BOTH are available
+  if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
     IMU.readAcceleration(ax, ay, az);
-    degreesAccY = -1*atan(ay/az)*180/PI;
-    //Serial.println(degreesAccY, 4);
-  }
-
-  if (IMU.gyroscopeAvailable()) {
     IMU.readGyroscope(gx, gy, gz);
+
+    degreesAccY = -1 * atan(ay / az) * 180 / PI;
+
     float currentLoopTime = millis();
     float loopDuration = currentLoopTime - lastLoopTime;
     lastLoopTime = currentLoopTime;
 
-    angleGyroX = degreesAccY + gx * (loopDuration/1000);
-    angleComp = (k*(angleGyroX)) + ((1-k)*degreesAccY);
+    angleGyroX = degreesAccY + gx * (loopDuration / 1000.0);
+    angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
+    //Serial.print(" gyro angle="); Serial.print(angleGyroX, 4);
     return angleComp;
-    // Serial.print(degreesAccY, 4);
-    // Serial.print(",");
-    // Serial.print(angleGyroX, 4);
-    // Serial.print(",");
-    // Serial.println(angleComp, 4);
   }
- // delay(300);
 
+  // Safe fallback — return last known good angle instead of garbage
+  return angleComp;
 }
+
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
@@ -145,8 +167,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(enc1A), ISR_enc1, CHANGE); //??
   attachInterrupt(digitalPinToInterrupt(enc2A), ISR_enc2, CHANGE);
 
-  setMotor1(pwm1);
-  setMotor2(pwm2);
+  // setMotor1(pwm1);
+  // setMotor2(pwm2);
 
     if (!IMU.begin()) {
     Serial.println("Failed to initialize IMU!");
@@ -167,31 +189,36 @@ void loop() {
   static unsigned long lastPrint = 0;
   unsigned long now = millis();
 
-  if (now - lastPrint >= 100) {   // print every 100 ms
+  // if (now - lastPrint >= 100) {   // print every 100 ms
+  //   // float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
+  //   // float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+
+  //   // Serial.print(" RPM1 = "); Serial.print(rpm1);
+  //   // Serial.print("  RPM2 = "); Serial.println(rpm2);
+  //   // Serial.print("  enc1 = "); Serial.print(encCount1);
+  //   // Serial.print("  enc2 = "); Serial.println(encCount2);
+
+  //   lastPrint = now;
+  // }
     float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
     float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
 
-    //Serial.print("RPM1 = "); Serial.print(rpm1);
-    //Serial.print("  RPM2 = "); Serial.println(rpm2);
-    // Serial.print("  enc1 = "); Serial.print(encCount1);
-    // Serial.print("  enc2 = "); Serial.println(encCount2);
-
-    lastPrint = now;
-  }
+    Serial.print(" RPM1 = "); Serial.print(rpm1);
+    Serial.print("  RPM2 = "); Serial.print(rpm2);
 
   float tilt_angle = angle();
 
-  if (tilt_angle <= -2) {
-    pwm1 = -100.0 * (float)tilt_angle / 90.0;
-    pwm2 = -100.0 * (float)tilt_angle / 90.0;
-  }
-
-  else if (tilt_angle > 2) {
+  if (tilt_angle <= -0.5) {
     pwm1 = 100.0 * (float)tilt_angle / 90.0;
     pwm2 = 100.0 * (float)tilt_angle / 90.0;
   }
 
-  else { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
+  else if (tilt_angle > 0.5) {
+    pwm1 = 100.0 * (float)tilt_angle / 90.0;
+    pwm2 = 100.0 * (float)tilt_angle / 90.0;
+  }
+
+  else if (tilt_angle > -0.5 && tilt_angle < 0.5) { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
     pwm1 = 0;
     pwm2 = 0;
   }
@@ -202,5 +229,8 @@ void loop() {
   Serial.print("  angle = "); Serial.print(tilt_angle);
   Serial.print("  pwm1 = "); Serial.print(pwm1);
   Serial.print("  pwm2 = "); Serial.println(pwm2);
+  // Serial.print("  encoder 1 = "); Serial.print(encCount1);
+  // Serial.print("  encoder 2 = "); Serial.println(encCount2);
+
 
 }

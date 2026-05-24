@@ -102,12 +102,12 @@ void loop() {
   interrupts();
 
   // ── Detect first movement ────────────────────────────────────────
-  if (!motor1kicked && count1 != 0) {
+  if (!motor1kicked && count1 >= 10) {
     motor1kicked = true;
     Serial.print(">>> M1 started moving at PWM = ");
     Serial.println(currentPWM1);
   }
-  if (!motor2kicked && count2 != 0) {
+  if (!motor2kicked && count2 >= 10) {
     motor2kicked = true;
     Serial.print(">>> M2 started moving at PWM = ");
     Serial.println(currentPWM2);

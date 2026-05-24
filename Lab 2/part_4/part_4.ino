@@ -12,10 +12,10 @@ const int enc2A = 3;   // INT1 – must be 2 or 3 on Uno
 const int enc2B = 10;
 
 // ── PWM / Deadband ────────────────────────────────────────────────
-int pwm1 = 75;
-int pwm2 = 75;
-int db1f = 36, db1r = 70;
-int db2f = 35, db2r = 70;
+int pwm1 = 25;
+int pwm2 = 25;
+int db1f = 36, db1r = 40;
+int db2f = 35, db2r = 35;
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -55,37 +55,37 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
 
 // ── H-Bridge Control ──────────────────────────────────────────────
 void setMotor1(int pwm) {
-  pwm = constrain(pwm, -255, 255);
+  pwm = constrain(pwm, -100, 100);
   if (pwm > 0) {
-    pwm = (int)(((255 - db1f) * pwm / 100.0) + db1f);
-    analogWrite(motor1in2, pwm);
-    digitalWrite(motor1in1, LOW);
+    int out = (int)(((255 - db1f) * pwm / 100.0) + db1f);
+    analogWrite(motor1in2, out);
+    analogWrite(motor1in1, 0);
   } else if (pwm < 0) {
-    pwm = (int)((db1r + (100 - db1r) * (-pwm / 100.0)) / 100.0 * 255);
-    digitalWrite(motor1in2, LOW);
-    analogWrite(motor1in1, pwm);
+    int out = (int)(((255 - db1r) * (-pwm) / 100.0) + db1r);
+    analogWrite(motor1in2, 0);
+    analogWrite(motor1in1, out);
   } else {
-    digitalWrite(motor1in1, HIGH);
-    digitalWrite(motor1in2, HIGH);
+    analogWrite(motor1in1, 255);
+    analogWrite(motor1in2, 255);
   }
-  Serial.print("M1="); Serial.println(pwm);
+  //Serial.print(" M1="); Serial.print(pwm);
 }
 
 void setMotor2(int pwm) {
-  pwm = constrain(pwm, -255, 255);
+  pwm = constrain(pwm, -100, 100);
   if (pwm > 0) {
-    pwm = (int)(((255 - db2f) * pwm / 100.0) + db2f);
-    analogWrite(motor2in1, pwm);
-    digitalWrite(motor2in2, LOW);
+    int out = (int)(((255 - db2f) * pwm / 100.0) + db2f);
+    analogWrite(motor2in1, out);
+    analogWrite(motor2in2, 0);
   } else if (pwm < 0) {
-    pwm = (int)((db2r + (100 - db2r) * (-pwm / 100.0)) / 100.0 * 255);
-    digitalWrite(motor2in1, LOW);
-    analogWrite(motor2in2, pwm);
+    int out = (int)(((255 - db2r) * (-pwm) / 100.0) + db2r);
+    analogWrite(motor2in1, 0);
+    analogWrite(motor2in2, out);
   } else {
-    digitalWrite(motor2in1, HIGH);
-    digitalWrite(motor2in2, HIGH);
+    analogWrite(motor2in1, 255);
+    analogWrite(motor2in2, 255);
   }
-  Serial.print("M2="); Serial.println(pwm);
+  //Serial.print("  M2="); Serial.print(pwm);
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
