@@ -12,8 +12,8 @@ const int enc2A = 3;   // INT1 – must be 2 or 3 on Uno
 const int enc2B = 10;
 
 // ── SET PWM HERE (0–255) ─────────────────────────────────────
-float pwm1 = 25; //db is 15, -16, usable range is 240
-float pwm2 = 25; //db is 19, -16
+float pwm1 = 75; //db is 15, -16, usable range is 240
+float pwm2 = 75; //db is 19, -16
 int db1f = 36;
 int db1r = 35;
 int db2f = 35;

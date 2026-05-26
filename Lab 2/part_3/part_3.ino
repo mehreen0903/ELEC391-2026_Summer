@@ -2,15 +2,15 @@
 const int ledPin    = LED_BUILTIN;
 
 //Motor pins
-const int motor1in1 = 2;
-const int motor1in2 = 3;
-const int motor2in1 = 5;
-const int motor2in2 = 6;
+const int motor1in1 = 5;
+const int motor1in2 = 6;
+const int motor2in1 = 7;
+const int motor2in2 = 8;
 
 // encoder pins
-const int enc1A = 7;  // motor 1, channel A...
-const int enc1B = 8;
-const int enc2A = 9;
+const int enc1A = 2;  // motor 1, channel A...
+const int enc1B = 9;
+const int enc2A = 3;
 const int enc2B = 10; 
 
 // ── Set PWM here [-100, 100] ─────────────────────────────────────

@@ -228,9 +228,9 @@ void loop() {
 
   Serial.print("  angle = "); Serial.print(tilt_angle);
   Serial.print("  pwm1 = "); Serial.print(pwm1);
-  Serial.print("  pwm2 = "); Serial.println(pwm2);
-  // Serial.print("  encoder 1 = "); Serial.print(encCount1);
-  // Serial.print("  encoder 2 = "); Serial.println(encCount2);
+  Serial.print("  pwm2 = "); Serial.print(pwm2);
+  Serial.print("  encoder 1 = "); Serial.print(encCount1);
+  Serial.print("  encoder 2 = "); Serial.println(encCount2);
 
 
 }
