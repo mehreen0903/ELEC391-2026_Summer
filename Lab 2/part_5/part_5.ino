@@ -2,15 +2,15 @@
 const int ledPin    = LED_BUILTIN;
 
 //motor pins
-const int motor1in1 = 2;
-const int motor1in2 = 3;
-const int motor2in1 = 5;
-const int motor2in2 = 6;
+const int motor1in1 = 5;
+const int motor1in2 = 6;
+const int motor2in1 = 7;
+const int motor2in2 = 8;
 
 //encoder pins
-const int enc1A = 7;   // Motor 1 encoder channel A
-const int enc1B = 8;   // Motor 1 encoder channel B
-const int enc2A = 9;  // Motor 2 encoder channel A
+const int enc1A = 2;   // Motor 1 encoder channel A
+const int enc1B = 9;   // Motor 1 encoder channel B
+const int enc2A = 3;  // Motor 2 encoder channel A
 const int enc2B = 10;   // Motor 2 encoder channel B
 
 // ── SET YOUR PWM HERE (0–255) ─────────────────────────────────────
@@ -23,13 +23,9 @@ int db2r = 70;
 
 int prev1A; int prev1B; int prev2A; int prev2B;
 
-int curr1A;
-int curr1B;
-int curr2A;
-int curr2B;
+int curr1A; int curr1B; int curr2A; int curr2B;
 
-int encCount1;
-int encCount2;
+int encCount1; int encCount2;
 
 // ── H-Bridge Control ──────────────────────────────────────────────
 void setMotor1(int pwm) {
