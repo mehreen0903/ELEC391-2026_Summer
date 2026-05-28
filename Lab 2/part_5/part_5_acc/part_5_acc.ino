@@ -16,8 +16,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 36, db1r = 40;
-int db2f = 35, db2r = 35;
+int db1f = 57, db1r = 57; //old f is 36
+int db2f = 60, db2r = 57; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -152,8 +152,8 @@ float angle() {
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(9600);
-  while (!Serial);
+  // Serial.begin(9600);
+  // while (!Serial);
 
   pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
   pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
@@ -171,7 +171,7 @@ void setup() {
   // setMotor2(pwm2);
 
     if (!IMU.begin()) {
-    Serial.println("Failed to initialize IMU!");
+   // Serial.println("Failed to initialize IMU!");
     while (1);
   }
 
@@ -203,22 +203,22 @@ void loop() {
     float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
     float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
 
-    Serial.print(" RPM1 = "); Serial.print(rpm1);
-    Serial.print("  RPM2 = "); Serial.print(rpm2);
+    // Serial.print(" RPM1 = "); Serial.print(rpm1);
+    // Serial.print("  RPM2 = "); Serial.print(rpm2);
 
   float tilt_angle = angle();
 
-  if (tilt_angle <= -0.5) {
+  if (tilt_angle <= -0.01) {
     pwm1 = 100.0 * (float)tilt_angle / 90.0;
     pwm2 = 100.0 * (float)tilt_angle / 90.0;
   }
 
-  else if (tilt_angle > 0.5) {
+  else if (tilt_angle > 0.01) {
     pwm1 = 100.0 * (float)tilt_angle / 90.0;
     pwm2 = 100.0 * (float)tilt_angle / 90.0;
   }
 
-  else if (tilt_angle > -0.5 && tilt_angle < 0.5) { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
+  else if (tilt_angle > -0.01 && tilt_angle < 0.01) { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
     pwm1 = 0;
     pwm2 = 0;
   }
@@ -226,11 +226,11 @@ void loop() {
   setMotor1(pwm1);
   setMotor2(pwm2);
 
-  Serial.print("  angle = "); Serial.print(tilt_angle);
-  Serial.print("  pwm1 = "); Serial.print(pwm1);
-  Serial.print("  pwm2 = "); Serial.print(pwm2);
-  Serial.print("  encoder 1 = "); Serial.print(encCount1);
-  Serial.print("  encoder 2 = "); Serial.println(encCount2);
+  // Serial.print("  angle = "); Serial.print(tilt_angle);
+  // Serial.print("  pwm1 = "); Serial.print(pwm1);
+  // Serial.print("  pwm2 = "); Serial.print(pwm2);
+  // Serial.print("  encoder 1 = "); Serial.print(encCount1);
+  // Serial.print("  encoder 2 = "); Serial.println(encCount2);
 
 
 }

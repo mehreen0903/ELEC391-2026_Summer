@@ -88,7 +88,7 @@ void setup() {
   setMotor1(0);
   setMotor2(0);
 
-  Serial.println("Starting ramp. Motors off, encoders zeroed.");
+  //Serial.println("Starting ramp. Motors off, encoders zeroed.");
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
@@ -102,12 +102,12 @@ void loop() {
   interrupts();
 
   // ── Detect first movement ────────────────────────────────────────
-  if (!motor1kicked && count1 >= 10) {
+  if (!motor1kicked && count1 >= 5) {
     motor1kicked = true;
     Serial.print(">>> M1 started moving at PWM = ");
     Serial.println(currentPWM1);
   }
-  if (!motor2kicked && count2 >= 10) {
+  if (!motor2kicked && count2 >= 5) {
     motor2kicked = true;
     Serial.print(">>> M2 started moving at PWM = ");
     Serial.println(currentPWM2);
@@ -119,19 +119,19 @@ void loop() {
   if (now - lastPrint >= 100) {
     float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
     float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
-    Serial.print("PWM1="); Serial.print(currentPWM1);
-    Serial.print(" RPM1="); Serial.print(rpm1);
-    Serial.print(" | PWM2="); Serial.print(currentPWM2);
-    Serial.print(" RPM2="); Serial.println(rpm2);
+    // Serial.print("PWM1="); Serial.print(currentPWM1);
+    // Serial.print(" RPM1="); Serial.print(rpm1);
+    // Serial.print(" | PWM2="); Serial.print(currentPWM2);
+    // Serial.print(" RPM2="); Serial.println(rpm2);
     lastPrint = now;
   }
 
   // ── Ramp complete check ──────────────────────────────────────────
   if (currentPWM1 >= 255 && currentPWM2 >= 255) {
     rampDone = true;
-    Serial.println("=== Ramp complete ===");
-    if (!motor1kicked) Serial.println("WARNING: M1 never moved!");
-    if (!motor2kicked) Serial.println("WARNING: M2 never moved!");
+    //Serial.println("=== Ramp complete ===");
+    if (!motor1kicked) //Serial.println("WARNING: M1 never moved!");
+    if (!motor2kicked) //Serial.println("WARNING: M2 never moved!");
     return;
   }
 

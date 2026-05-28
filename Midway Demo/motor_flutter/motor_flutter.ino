@@ -104,8 +104,8 @@ void setMotor2(int pwm) {
 }
 
 void setup() {
-  Serial.begin(9600);
-  while (!Serial);
+  //Serial.begin(9600);
+  //while (!Serial);
     
   // Initialize the built-in LED to indicate connection status
   pinMode(LED_BUILTIN, OUTPUT);
