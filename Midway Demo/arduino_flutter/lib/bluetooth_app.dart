@@ -151,6 +151,23 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
+  Widget _buildHoldButton({required IconData icon, required String command}) {
+    return GestureDetector(
+      onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
+      onTapUp: _isConnected ? (_) => _sendCommand('STOP') : null,
+      onTapCancel: _isConnected ? () => _sendCommand('STOP') : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _isConnected ? Colors.blue : Colors.grey[400],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: Colors.white, size: 28),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,10 +229,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(
-                      onPressed:
-                          _isConnected ? () => _sendCommand('FORWARD') : null,
-                      child: const Icon(Icons.arrow_upward),
+                    _buildHoldButton(
+                      icon: Icons.arrow_upward,
+                      command: 'FORWARD',
                     ),
                   ],
                 ),
@@ -223,22 +239,19 @@ class _MyHomePageState extends State<MyHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(
-                      onPressed:
-                          _isConnected ? () => _sendCommand('LEFT') : null,
-                      child: const Icon(Icons.arrow_back),
+                    _buildHoldButton(
+                      icon: Icons.arrow_back,
+                      command: 'LEFT',
                     ),
                     const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed:
-                          _isConnected ? () => _sendCommand('BACKWARD') : null,
-                      child: const Icon(Icons.arrow_downward),
+                    _buildHoldButton(
+                      icon: Icons.arrow_downward,
+                      command: 'BACKWARD',
                     ),
                     const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed:
-                          _isConnected ? () => _sendCommand('RIGHT') : null,
-                      child: const Icon(Icons.arrow_forward),
+                    _buildHoldButton(
+                      icon: Icons.arrow_forward,
+                      command: 'RIGHT',
                     ),
                   ],
                 ),
