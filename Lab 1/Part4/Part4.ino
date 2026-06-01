@@ -17,6 +17,7 @@ void setup() {
   }
 
   angleGyroPrev = 0;
+  angleComp = 0;
   lastLoopTime = millis();
 }
 
@@ -37,7 +38,7 @@ void loop() {
     float loopDuration = currentLoopTime - lastLoopTime;
     lastLoopTime = currentLoopTime;
 
-    angleGyroX = degreesAccY + gx * (loopDuration/1000);
+    angleGyroX = angleComp + (gx-0.3) * (loopDuration/1000);
     angleComp = (k*(angleGyroX)) + ((1-k)*degreesAccY);
     
     Serial.print(degreesAccY, 4);

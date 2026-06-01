@@ -98,31 +98,6 @@ void setMotor2(int pwm) {
   //Serial.print("  M2="); Serial.print(pwm);
 }
 
-// float angle() {
-//   float gx, gy, gz;
-//   float ax, ay, az;
-//   float k = 0.91;
-//   if (IMU.accelerationAvailable()) {
-//     IMU.readAcceleration(ax, ay, az);
-//     degreesAccY = -1*atan(ay/az)*180/PI;
-//     //Serial.println(degreesAccY, 4);
-//   }
-//   if (IMU.gyroscopeAvailable()) {
-//     IMU.readGyroscope(gx, gy, gz);
-//     float currentLoopTime = millis();
-//     float loopDuration = currentLoopTime - lastLoopTime;
-//     lastLoopTime = currentLoopTime;
-//     angleGyroX = degreesAccY + gx * (loopDuration/1000);
-//     angleComp = (k*(angleGyroX)) + ((1-k)*degreesAccY);
-//     return angleComp;
-//     // Serial.print(degreesAccY, 4);
-//     // Serial.print(",");
-//     // Serial.print(angleGyroX, 4);
-//     // Serial.print(",");
-//     // Serial.println(angleComp, 4);
-//   }
-//  // delay(300);
-// }
 float angle() {
   float gx, gy, gz;
   float ax, ay, az;
@@ -132,19 +107,21 @@ float angle() {
   if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
     IMU.readAcceleration(ax, ay, az);
     IMU.readGyroscope(gx, gy, gz);
-
+    //Serial.print(" Gx: "); Serial.println(gx, 4);
     degreesAccY = -1 * atan(ay / az) * 180 / PI;
 
     float currentLoopTime = millis();
     float loopDuration = currentLoopTime - lastLoopTime;
     lastLoopTime = currentLoopTime;
 
-    angleGyroX = degreesAccY + gx * (loopDuration / 1000.0);
+    angleGyroX = angleComp + (gx-0.3) * (loopDuration / 1000.0);
     angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
-    //Serial.print(" gyro angle="); Serial.print(angleGyroX, 4);
+    Serial.print(degreesAccY, 4);
+    Serial.print(", "); Serial.print(angleGyroX, 4);
+    Serial.print(", "); Serial.println(angleComp, 4);
+
     return angleComp;
   }
-
   // Safe fallback — return last known good angle instead of garbage
   return angleComp;
 }
@@ -152,8 +129,8 @@ float angle() {
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  // Serial.begin(9600);
-  // while (!Serial);
+  Serial.begin(9600);
+  while (!Serial);
 
   pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
   pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
@@ -208,17 +185,17 @@ void loop() {
 
   float tilt_angle = angle();
 
-  if (tilt_angle <= -0.01) {
+  if (tilt_angle <= -5) {
     pwm1 = 100.0 * (float)tilt_angle / 90.0;
     pwm2 = 100.0 * (float)tilt_angle / 90.0;
   }
 
-  else if (tilt_angle > 0.01) {
+  else if (tilt_angle > 5) {
     pwm1 = 100.0 * (float)tilt_angle / 90.0;
     pwm2 = 100.0 * (float)tilt_angle / 90.0;
   }
 
-  else if (tilt_angle > -0.01 && tilt_angle < 0.01) { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
+  else if (tilt_angle > -5 && tilt_angle < 5) { //in here, wheels r goin crazy idk why so between -2 and 2 degrees, deadband messing with it
     pwm1 = 0;
     pwm2 = 0;
   }

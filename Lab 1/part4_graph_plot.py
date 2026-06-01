@@ -22,7 +22,7 @@ gyro_data = []  # gyroscope angle (gyro + acc ref)
 comp_data = []  # complementary filter angle
 
 # Create three lines with labels
-line_acc, = ax.plot(x_data, acc_data, label='Accelerometer', color='blue', lw=3)
+line_acc, = ax.plot(x_data, acc_data, label='Accelerometer', color='blue')
 line_gyro, = ax.plot(x_data, gyro_data, label='Gyro (Complementary)', color='orange')
 line_comp, = ax.plot(x_data, comp_data, label='Complementary Filter', color='green')
 
