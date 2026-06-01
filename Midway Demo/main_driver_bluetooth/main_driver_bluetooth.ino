@@ -56,8 +56,8 @@ float kalAngle = 0.0; //output of kalman filter
 float kalError = 0.0; //error covariance (starts at 1.0 and updates dynamically)
 
 //tuning parameters
-float Q_process = 0.01; // Process noise variance (gyroscope noise per second)
-float R_measure = 0.02; // Measurement noise variance (accelerometer noise level)
+float Q_process = 0.001; // Process noise variance (gyroscope noise per second)
+float R_measure = 0.1; // Measurement noise variance (accelerometer noise level)
 
 
 // Define a custom BLE service and characteristic
@@ -98,8 +98,7 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
   return (revs / (float)dt) * 60000.0f;   // RPM
 }
 
-
-//set pwm from input from app 
+// ── Set target angle with kalman filter ───────────────────────────
 float setPWMWithFlutter(char* data) {
     if (strcmp(data, "FORWARD") == 0) {
         pwm1 = 100;
@@ -192,7 +191,7 @@ float angle() {
 
     //calculate time data
     float currentLoopTime = millis();
-    float loopDuration = currentLoopTime - lastLoopTime;
+    float loopDuration = (currentLoopTime - lastLoopTime) / 1000.0f;
     lastLoopTime = currentLoopTime;
     
     //KALMAN: TIME UPDATE
@@ -216,7 +215,6 @@ float angle() {
     return kalAngle;
   }
 
-  
   // Safe fallback — return last known good angle instead of garbage
   return kalAngle;
 }
