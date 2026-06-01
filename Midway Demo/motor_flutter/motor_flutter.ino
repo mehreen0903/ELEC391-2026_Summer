@@ -6,10 +6,10 @@
 const int ledPin    = LED_BUILTIN;
 
 //motor pins
-const int motor1in1 = 5;
-const int motor1in2 = 6;
-const int motor2in1 = 7;
-const int motor2in2 = 8;
+const int motor1in1 = 6;
+const int motor1in2 = 5;
+const int motor2in1 = 8;
+const int motor2in2 = 7;
 
 //encoder pins
 const int enc1A = 2;   // Motor 1 encoder channel A
@@ -20,10 +20,8 @@ const int enc2B = 10;   // Motor 2 encoder channel B
 // ── SET YOUR PWM HERE (0–255) ─────────────────────────────────────
 int pwm1 = 0; //db is 15, -16, usable range is 240
 int pwm2 = 0; //db is 19, -16
-int db1f = 36;
-int db1r = 70;
-int db2f = 35;
-int db2r = 70;
+int db1f = 57, db1r = 57; //old f is 36
+int db2f = 60, db2r = 57; //old f is 35
 
 int prev1A; int prev1B; int prev2A; int prev2B;
 
@@ -104,7 +102,7 @@ void setMotor2(int pwm) {
 }
 
 void setup() {
-  //Serial.begin(9600);
+  Serial.begin(9600);
   //while (!Serial);
     
   // Initialize the built-in LED to indicate connection status
