@@ -204,7 +204,7 @@ void setup() {
   anglePID = {
     .Kp = 3,
     .Ki = 0.08,
-    .Kd = 5.5,
+    .Kd = 5,
     .Target = 1.18
   };
 
