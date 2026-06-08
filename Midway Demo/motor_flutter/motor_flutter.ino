@@ -34,32 +34,41 @@ BLEService customService("00000000-5EC4-4083-81CD-A10B8D5CF6EC");
 BLECharacteristic customCharacteristic(
     "00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
 
-//set pwm from input from app 
-void setPWMWithFlutter(char* data) {
-
-    if (strcmp(data, "FORWARD") == 0) {
-        pwm1 = 100;
-        pwm2 = 100;
-    }
-    else if (strcmp(data, "BACKWARD") == 0) {
-        pwm1 = -100;
-        pwm2 = -100;
-    }
-    else if (strcmp(data, "LEFT") == 0) {
-        pwm1 = 100;
-        pwm2 = -100;
-    }
-    else if (strcmp(data, "RIGHT") == 0) {
-        pwm1 = -100;
-        pwm2 = 100;
-    }
-    else if (strcmp(data, "A") == 0) {
+// set pwm from input from app 
+// stop = 0
+// forward = 1
+// left = 2
+// backward = 3
+// right = 4
+// A = 5
+// B = 6
+// C = 7
+void setAngleWithFlutter(int data) {
+  switch(data) {
+    case 1:
+        pwm1 = 20;
+        pwm2 = 20;
+        break;
+    case 3:
+        pwm1 = -20;
+        pwm2 = -20;
+        break;
+    case 2:
+        pwm1 = -20;
+        pwm2 = 20;
+        break;
+    case 4:
+        pwm1 = 20;
+        pwm2 = -20;
+        break;
+    case 5:
         pwm1 = 0;
         pwm2 = 0;
-    }
-    else {
+        break;
+    default:
         pwm1 = 0;
         pwm2 = 0;
+        break;
     }
 
     setMotor1(pwm1);
@@ -145,25 +154,30 @@ void loop() {
     while (central.connected()) {
       // Check if the characteristic was written
       if (customCharacteristic.written()) {
-       // Get the length of the received data
-        int length = customCharacteristic.valueLength();
 
-        // Read the received data
+        // Read the single byte directly
         const unsigned char* receivedData = customCharacteristic.value();
+        int command = receivedData[0];   // grab the byte as an int
 
-        // Create a properly terminated string
-        char receivedString[length + 1]; // +1 for null terminator
-        memcpy(receivedString, receivedData, length);
-        receivedString[length] = '\0'; // Null-terminate the string
+        Serial.print("Received command: ");
+        Serial.println(command);
 
-        // Print the received data to the Serial Monitor
-        Serial.print("Received data: ");
-        Serial.println(receivedString);
-
-
-        // Optionally, respond by updating the characteristic's value
         customCharacteristic.writeValue("Data received");
-        setPWMWithFlutter(receivedString);
+        setAngleWithFlutter(command);      // pass int, not char* 
+        // Get the length of the received data
+        // int length = customCharacteristic.valueLength();
+        // // Read the received data
+        // const unsigned char* receivedData = customCharacteristic.value();
+        // // Create a properly terminated string
+        // char receivedString[length + 1]; // +1 for null terminator
+        // memcpy(receivedString, receivedData, length);
+        // receivedString[length] = '\0'; // Null-terminate the string
+        // // Print the received data to the Serial Monitor
+        // Serial.print("Received data: ");
+        // Serial.println(receivedString);
+        // // Optionally, respond by updating the characteristic's value
+        // customCharacteristic.writeValue("Data received");
+        // setAngleWithFlutter(receivedString);
       }
     }
 
