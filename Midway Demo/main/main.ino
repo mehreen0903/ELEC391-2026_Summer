@@ -125,7 +125,7 @@ float angle() {
     lastLoopTime = currentLoopTime;
 
     angleGyroX = angleComp + (gx-0.3) * (loopDuration / 1000.0);
-    angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
+    angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY); //complementary filter
     //Serial.print(" gyro angle="); Serial.print(angleGyroX, 4);
     return angleComp;
   }
