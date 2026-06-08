@@ -6,15 +6,17 @@
 struct PID_t {
   float Kp;
   float Ki;
-  float Kd;  
-  float Target;
+  float Kd;
+  float TargetDefault;
+  float OutputMax;
+  float ErrorIntMax;
+
   float Actual;
+  float Target;
   float Output;
   float Error0;
   float Error1;
   float ErrorInt;
-  float OutMax;
-  float OutMin;
 };
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
@@ -33,8 +35,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 70, db1r = 70; //old f is 36
-int db2f = 70, db2r = 70; //old f is 35
+int db1f = 60, db1r = 60; //old f is 36
+int db2f = 60, db2r = 60; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -44,25 +46,26 @@ long  prevCount1 = 0, prevCount2 = 0;
 unsigned long prevTime1 = 0, prevTime2 = 0;
 
 // -- Acc and gyro vars ------------------------------------------
-float angleGyroX;
-float angleGyroPrev;
+float angleGyroX = 0;
+float angleGyroPrev = 0;
 float angleComp = 0;
 float lastLoopTime = 0;
-float ax, ay, az;
+//float ax, ay, az;
 float degreesAccY = 0;
 
 // ── PID Struct Vars ───────────────────────────────────────────────
 PID_t anglePID;
+PID_t drivePID;
 
-float avePWM;
-float difPWM;
-float aveRPM;
-float difRPM; 
+float avePWM = 0;
+float difPWM = 0;
+float aveRPM = 0;
+float difRPM = 0; 
 
 // Define a custom BLE service and characteristic --------------------
 BLEService customService("00000000-5EC4-4083-81CD-A10B8D5CF6EC");
 BLECharacteristic customCharacteristic(
-    "00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
+"00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
 
 // ── ISRs ──────────────────────────────────────────────────────────
 void ISR_enc1() {
@@ -122,30 +125,30 @@ float angle() {
   return angleComp;
 }
 
-float setAngleWithFlutter(int data) {
+float setAveRPMWithFlutter(int data) {
   switch(data) {
     case 1: //FORWARD
-        return 1.58;
+        return 0.4; //max rpm is 300 ish
         break;
     case 3: //BACKWARDS
-        return 0.68;
+        return -0.4;
         break;
     case 2: //LEFT
-        return 1.25;
+        return 0.2;
         break;
     case 4: //RIGHT
-        return 1.25;
+        return 0.2;
         break;
     case 5: //A OR STOP
-        return 1.18;
+        return 0;
         break;
     default: //STOP
-        return 1.18; // Invalid command, do nothing
+        return 0; // Invalid command, do nothing
         break;
     }
     // setMotor1(pwm1);
     // setMotor2(pwm2);
-    return 1.18; // Default target angle
+    return 0; // Default target angle
 }
 
 float setDifPWMWithFlutter(int data) {
@@ -211,13 +214,11 @@ void setMotor2(int pwm) {
 // ── PID Stoff ─────────────────────────────────────────────────────
 void PID_Init (PID_t &pid) {
   pid.Actual = 0;
-  //pid.Target = 0;
+  pid.Target = 0;
   pid.Output = 0;
   pid.Error0 = 0;
   pid.Error1 = 0;
   pid.ErrorInt = 0;
-  pid.OutMax = 100;
-  pid.OutMin = -100;
 }
 
 void updatePID(PID_t &pid){
@@ -226,21 +227,20 @@ void updatePID(PID_t &pid){
 
   if (pid.Ki != 0){
 		pid.ErrorInt += pid.Error0;
-	}else {
+	} else {
 		pid.ErrorInt = 0;
 	}
 
-  constrain(pid.ErrorInt,-30,30);
+  constrain(pid.ErrorInt, -pid.ErrorIntMax, pid.ErrorIntMax);
 
   pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * (pid.Error0 - pid.Error1);
 
-  if (pid.Output > 100) {pid.Output = 100;}
-	if (pid.Output < -100) {pid.Output = -100;}
+  constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  //Serial.begin(9600);
+  Serial.begin(9600);
   //while (!Serial);
 
   //--- MOTOR FLUTTER CODE BELOW-----------------------------------------
@@ -248,7 +248,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
   if (!BLE.begin()) {
-    Serial.println("Starting BLE failed!");
+    //Serial.println("Starting BLE failed!");
     while (1);
   }
 
@@ -268,7 +268,7 @@ void setup() {
   // Start advertising the service
   BLE.advertise();
 
-  Serial.println("Bluetooth® device active, waiting for connections...");
+  //Serial.println("Bluetooth® device active, waiting for connections...");
 
   //--- NINAS LAST FIGHTING CHANCE CODE BELOW ----------------------------
   pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
@@ -288,33 +288,43 @@ void setup() {
     while (1);
   }
 
-  angleGyroPrev = 0;
-
   PID_Init(anglePID);
-  
+  // 3, 0.05, 7.5, 1.11, 100, 50
   anglePID = {
     .Kp = 3,
     .Ki = 0.08,
     .Kd = 5,
-    .Target = 1.18
+    .TargetDefault = 1.11,
+    .OutputMax = 100,
+    .ErrorIntMax = 50
   };
 
-  avePWM = 0;
-  difPWM = 0;
-  aveRPM = 0;
-  difRPM = 0;
-    
+  PID_Init(drivePID);
+  
+  drivePID = {
+    .Kp = 2,
+    .Ki = 0,
+    .Kd = 0,
+    .TargetDefault = 0,
+    .OutputMax = 10,
+    .ErrorIntMax = 5
+  };
+
+  anglePID.Target = anglePID.TargetDefault; //setup angle PID
+  drivePID.Target = drivePID.TargetDefault; //setup drive PID, this is target speed
+  
   lastLoopTime = millis();
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
 void loop() {
+  //float start_time = millis();
   // --- MOTOR FLUTTER CODE BELOW ------------------------------------
   BLEDevice central = BLE.central(); // Wait for a BLE central to connect
 
   if (central) {
-    Serial.print("Connected to central: ");
-    Serial.println(central.address());
+    //Serial.print("Connected to central: ");
+    //Serial.println(central.address());
     digitalWrite(LED_BUILTIN, HIGH); // Turn on LED to indicate connection
 
     int command = 0;  // ← declare here so both if and else can see it
@@ -328,24 +338,22 @@ void loop() {
         const unsigned char* receivedData = customCharacteristic.value();
         int command = receivedData[0];   // grab the byte as an int
 
-        Serial.print("Received command: ");
-        Serial.println(command);
+        //Serial.print("Received command: ");
+        //Serial.println(command);
 
         customCharacteristic.writeValue("Data received");
-        anglePID.Target = setAngleWithFlutter(command);      // set target angle according to button press, and pass int, not char* 
+        drivePID.Target = setAveRPMWithFlutter(command);      // set target angle according to button press, and pass int, not char* 
         difPWM = setDifPWMWithFlutter(command);
       }
-
-      //put ninas lfc in here????????
     }
 
     else {
-      anglePID.Target = setAngleWithFlutter(command);      // set target angle according to button press, and pass int, not char* 
-      difPWM = setDifPWMWithFlutter(command);
+      drivePID.Target = drivePID.TargetDefault;      // set target angle according to button press, and pass int, not char* 
+      difPWM = 0; //setDifPWMWithFlutter(command);
     }
 
     digitalWrite(LED_BUILTIN, LOW); // Turn off LED when disconnected
-    Serial.println("Disconnected from central.");
+    //Serial.println("Disconnected from central.");
   }
   
 
@@ -355,21 +363,33 @@ void loop() {
 
   float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
   float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+  aveRPM = (rpm1 + rpm2)/2;
+  difRPM = rpm1 - rpm2;
 
   float tilt_angle = angle();
   //Serial.println(tilt_angle);
+  float driveAngle;
 
   if ((tilt_angle >= -30)&&(tilt_angle <= 30)) {
+    
+    if (drivePID.Target != 0) {
+      drivePID.Actual = aveRPM / 60; //convertinf RPM to RPS
+      updatePID(drivePID);
+      driveAngle = drivePID.Output;
+    } else {
+      driveAngle = 0;
+    }
+    anglePID.Target = driveAngle + anglePID.TargetDefault; //set target angle according to movement
     anglePID.Actual = tilt_angle;
     updatePID(anglePID);
 
     avePWM = anglePID.Output;
     
-    pwm1 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-    pwm2 = avePWM - difPWM/2; //100.0 * (float)tilt_angle / 90.0;
+    pwm1 = avePWM + difPWM/2;
+    pwm2 = avePWM - difPWM/2;
 
-    if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
-		if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
+    constrain(pwm1, -100, 100);
+    constrain(pwm2, -100, 100);
   }
   else {
     pwm1 = 0;
@@ -378,5 +398,5 @@ void loop() {
 
   setMotor1(pwm1);
   setMotor2(pwm2);
-
+  //Serial.println(millis() - start_time);
 }
