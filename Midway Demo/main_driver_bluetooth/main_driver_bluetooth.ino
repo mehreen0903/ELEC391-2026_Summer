@@ -1,4 +1,24 @@
 #include "Arduino_BMI270_BMM150.h"
+#include <ArduinoBLE.h>
+#include <string.h>
+#include <Wire.h>
+#define BUFFER_SIZE 1
+
+struct PID_t {
+  float Kp;
+  float Ki;
+  float Kd;
+  float TargetDefault;
+  float OutputMax;
+  float ErrorIntMax;
+
+  float Actual;
+  float Target;
+  float Output;
+  float Error0;
+  float Error1;
+  float ErrorInt;
+};
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
 const int ledPin    = LED_BUILTIN;
@@ -16,56 +36,38 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60; //old f is 36
-int db2f = 60, db2r = 60; //old f is 35
+int db1f = 67, db1r = 67; //old f is 36
+int db2f = 67, db2r = 67; //old f is 35
 
-// ── Encoder counts (volatile = modified in ISR) ──────────────────
+// ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
 volatile long encCount2 = 0;
+// Per-motor state for calcRPM
+long  prevCount1 = 0, prevCount2 = 0;
+unsigned long prevTime1 = 0, prevTime2 = 0;
 
-// ── Acc and gyro vars ────────────────────────────────────────────
-float angleGyroX;
-float angleGyroPrev;
+// -- Acc and gyro vars ------------------------------------------
+float angleGyroX = 0;
+float angleGyroPrev = 0;
 float angleComp = 0;
 float lastLoopTime = 0;
-float ax, ay, az;
+//float ax, ay, az;
 float degreesAccY = 0;
 
-// ── PID variables ────────────────────────────────────────────────
-float anglePID_Kp = 6;
-float anglePID_Ki = 0.1;
-float anglePID_Kd = 7;
-float anglePID_Actual, anglePID_Target, anglePID_Out;
-float anglePID_ErrorInt, anglePID_Error0, anglePID_Error1;
+// ── PID Struct Vars ───────────────────────────────────────────────
+PID_t anglePID;
+PID_t drivePID;
 
-float avePWM;
-float difPWM;
-//float leftPWM, rightPWM; //is pwm1 and pwm2
-float LeftSpeed, RightSpeed;
-float AveSpeed, DifSpeed;
+float avePWM = 0;
+float difPWM = 0;
+float aveRPM = 0;
+float difRPM = 0; 
 
-float speedPID_Kp = 2;
-float speedPID_Ki = 0.05;
-float speedPID_Kd = 0;
-float speedPID_Actual, speedPID_Target, speedPID_Out;
-float speedPID_ErrorInt, speedPID_Error0, speedPID_Error1;
-
-
-// ── kalman variables ────────────────────────────────────────
-float kalAngle = 0.0; //output of kalman filter
-float kalError = 0.0; //error covariance (starts at 1.0 and updates dynamically)
-
-//tuning parameters
-float Q_process = 0.001; // Process noise variance (gyroscope noise per second)
-float R_measure = 0.1; // Measurement noise variance (accelerometer noise level)
-
-
-// Define a custom BLE service and characteristic
+// Define a custom BLE service and characteristic --------------------
 BLEService customService("00000000-5EC4-4083-81CD-A10B8D5CF6EC");
 BLECharacteristic customCharacteristic(
-    "00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
+"00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
 
-    
 // ── ISRs ──────────────────────────────────────────────────────────
 void ISR_enc1() {
   int a = digitalRead(enc1A);
@@ -98,48 +100,84 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
   return (revs / (float)dt) * 60000.0f;   // RPM
 }
 
-// ── Set target angle with kalman filter ───────────────────────────
-float setPWMWithFlutter(char* data) {
-    if (strcmp(data, "FORWARD") == 0) {
-        pwm1 = 100;
-        pwm2 = 100;
+// ── Angle Calc & Control ──────────────────────────────────────────
+float angle() {
+  float gx, gy, gz;
+  float ax, ay, az;
+  float k = 0.99;
 
-        return 10; // target angle
-    }
-    else if (strcmp(data, "BACKWARD") == 0) {
-        pwm1 = -100;
-        pwm2 = -100;
+  // Only compute if BOTH are available
+  if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
+    IMU.readAcceleration(ax, ay, az);
+    IMU.readGyroscope(gx, gy, gz);
 
-        return -10;
-    }
-    else if (strcmp(data, "LEFT") == 0) {
-        pwm1 = 100;
-        pwm2 = -100;
+    degreesAccY = -1 * atan(ay / az) * 180 / PI + 0.25;
 
-        return 0;
-    }
-    else if (strcmp(data, "RIGHT") == 0) {
-        pwm1 = -100;
-        pwm2 = 100;
+    float currentLoopTime = millis();
+    float loopDuration = currentLoopTime - lastLoopTime;
+    lastLoopTime = currentLoopTime;
 
-        return 0;
-    }
-    else if (strcmp(data, "A") == 0) {
-        pwm1 = 0;
-        pwm2 = 0;
+    angleGyroX = angleComp + (gx-0.3) * (loopDuration / 1000.0);
+    angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
+    return angleComp;
+  }
 
-        return 0;
-    }
-    else {
-        pwm1 = 0;
-        pwm2 = 0;
-
-        return 0;
-    }
-
-    setMotor1(pwm1);
-    setMotor2(pwm2);
+  // Safe fallback — return last known good angle instead of garbage
+  return angleComp;
 }
+
+float setAveRPMWithFlutter(int data) {
+  switch(data) {
+    case 1: //FORWARD
+        return 0.4; //max rpm is 300 ish
+        break;
+    case 3: //BACKWARDS
+        return -0.4;
+        break;
+    case 2: //LEFT
+        return 0.2;
+        break;
+    case 4: //RIGHT
+        return 0.2;
+        break;
+    case 5: //A OR STOP
+        return 0;
+        break;
+    default: //STOP
+        return 0; // Invalid command, do nothing
+        break;
+    }
+    // setMotor1(pwm1);
+    // setMotor2(pwm2);
+    return 0; // Default target angle
+}
+
+float setDifPWMWithFlutter(int data) {
+  switch(data) {
+    case 1: //FORWARD
+        return 0.0;
+        break;
+    case 3: //BACKWARDS
+        return 0.0;
+        break;
+    case 2: //LEFT
+        return 20.0;
+        break;
+    case 4: //RIGHT
+        return -20.0;
+        break;
+    case 5: //A OR STOP
+        return 0.0;
+        break;
+    default: //STOP
+        return 0.0; // Invalid command, do nothing
+        break;
+    }
+    // setMotor1(pwm1);
+    // setMotor2(pwm2);
+    return 0.0; // Default target angle
+}
+
 
 // ── H-Bridge Control ──────────────────────────────────────────────
 void setMotor1(int pwm) {
@@ -156,7 +194,6 @@ void setMotor1(int pwm) {
     analogWrite(motor1in1, 255);
     analogWrite(motor1in2, 255);
   }
-  //Serial.print(" M1="); Serial.print(pwm);
 }
 
 void setMotor2(int pwm) {
@@ -173,97 +210,49 @@ void setMotor2(int pwm) {
     analogWrite(motor2in1, 255);
     analogWrite(motor2in2, 255);
   }
-  //Serial.print("  M2="); Serial.print(pwm);
 }
 
-float angle() {
-  float gx, gy, gz;
-  float ax, ay, az;
-  //float k = 0.99;
-
-  // Only compute if BOTH are available
-  if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
-    IMU.readAcceleration(ax, ay, az);
-    IMU.readGyroscope(gx, gy, gz);
-
-    //calculate raw accelerometer angle
-    degreesAccY = -1 * atan(ay / az) * 180 / PI;
-
-    //calculate time data
-    float currentLoopTime = millis();
-    float loopDuration = (currentLoopTime - lastLoopTime) / 1000.0f;
-    lastLoopTime = currentLoopTime;
-    
-    //KALMAN: TIME UPDATE
-    //step 1: predict the angle
-    float gyroRate = gx - 0.3; //minus 0.3 offset
-    kalAngle = kalAngle + (gyroRate * loopDuration);
-
-    //step 2: predict the uncertainty
-    kalError = kalError + (Q_process * loopDuration);
-
-    //KALMAN: MEASUREMENT UPDATE
-    //step 4: compute kalman gain
-    float kalGain = kalError / (kalError + R_measure);
-
-    //step 5: update estimate with measurement
-    kalAngle = kalAngle + kalGain * (degreesAccY - kalAngle);
-
-    //step 6: update the estimate uncertainty
-    kalError = (1.0 - kalGain) * kalError;
-
-    return kalAngle;
-  }
-
-  // Safe fallback — return last known good angle instead of garbage
-  return kalAngle;
+// ── PID Stoff ─────────────────────────────────────────────────────
+void PID_Init (PID_t &pid) {
+  pid.Actual = 0;
+  pid.Target = 0;
+  pid.Output = 0;
+  pid.Error0 = 0;
+  pid.Error1 = 0;
+  pid.ErrorInt = 0;
 }
 
-// ── PID Update Function ───────────────────────────────────────────
-void updatePID(float &Kp, float &Ki, float &Kd, 
-float &Actual, float &Target, float &Out, 
-float &ErrorInt, float &Error0, float &Error1){
-  Error1 = Error0;
-  Error0 = Target-Actual;
+void updatePID(PID_t &pid){
+  pid.Error1 = pid.Error0;
+  pid.Error0 = pid.Target-pid.Actual;
 
-  if (Ki != 0){
-		ErrorInt += Error0;
-	}else {
-		ErrorInt = 0;
+  if (pid.Ki != 0){
+		pid.ErrorInt += pid.Error0;
+	} else {
+		pid.ErrorInt = 0;
 	}
 
-  Out = Kp * Error0 + Ki * ErrorInt + Kd * (Error0 - Error1);
-}
+  constrain(pid.ErrorInt, -pid.ErrorIntMax, pid.ErrorIntMax);
 
+  pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * (pid.Error0 - pid.Error1);
+
+  constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
+}
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  // Serial.begin(9600);
-  // while (!Serial);
+  //Serial.begin(9600);
+  //while (!Serial);
 
-  pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
-  pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
-  pinMode(ledPin, OUTPUT);
+  //--- MOTOR FLUTTER CODE BELOW-----------------------------------------
+  // Initialize the built-in LED to indicate connection status
+  pinMode(LED_BUILTIN, OUTPUT);
 
-  pinMode(enc1A, INPUT_PULLUP);  // INPUT_PULLUP avoids floating pin noise
-  pinMode(enc1B, INPUT_PULLUP);
-  pinMode(enc2A, INPUT_PULLUP);
-  pinMode(enc2B, INPUT_PULLUP);
-
-  attachInterrupt(digitalPinToInterrupt(enc1A), ISR_enc1, CHANGE); //??
-  attachInterrupt(digitalPinToInterrupt(enc2A), ISR_enc2, CHANGE);
-
-  if (!IMU.begin()) {
-   // Serial.println("Failed to initialize IMU!");
-    while (1);
-  }
-  
-  // more bluetooth stuff
   if (!BLE.begin()) {
-    Serial.println("Starting BLE failed!");
+    //Serial.println("Starting BLE failed!");
     while (1);
   }
-  
+
   // Set the device name and local name
   BLE.setLocalName("NINA");
   BLE.setDeviceName("NINA");
@@ -280,148 +269,132 @@ void setup() {
   // Start advertising the service
   BLE.advertise();
 
-  Serial.println("Bluetooth® device active, waiting for connections...");
+  //Serial.println("Bluetooth® device active, waiting for connections...");
 
-  angleGyroPrev = 0;
-  anglePID_Actual = 0;
-  anglePID_Target = 0;
-  anglePID_Out = 0;
-  anglePID_ErrorInt = 0;
-  anglePID_Error0 = 0;
-  anglePID_Error1 = 0;
+  //--- NINAS LAST FIGHTING CHANCE CODE BELOW ----------------------------
+  pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
+  pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
+  pinMode(ledPin, OUTPUT);
 
-  speedPID_Actual = 0;
-  speedPID_Target = 0;
-  speedPID_Out = 0;
-  speedPID_ErrorInt = 0;
-  speedPID_Error0 = 0;
-  speedPID_Error1 = 0;
+  pinMode(enc1A, INPUT_PULLUP);  // INPUT_PULLUP avoids floating pin noise
+  pinMode(enc1B, INPUT_PULLUP);
+  pinMode(enc2A, INPUT_PULLUP);
+  pinMode(enc2B, INPUT_PULLUP);
 
-  lastLoopTime = millis(); // to calculate angle from gyro with dt
+  attachInterrupt(digitalPinToInterrupt(enc1A), ISR_enc1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(enc2A), ISR_enc2, CHANGE);
 
+  if (!IMU.begin()) {
+   // Serial.println("Failed to initialize IMU!");
+    while (1);
+  }
+
+  Wire.setClock(400000); // Bump I2C speed from 100kHz to 400kHz
+
+  PID_Init(anglePID);
+  
+  anglePID = {
+    .Kp = 3,
+    .Ki = 0.04,
+    .Kd = 10,
+    .TargetDefault = 1.11,
+    .OutputMax = 100,
+    .ErrorIntMax = 50
+  };
+
+  PID_Init(drivePID);
+  
+  drivePID = {
+    .Kp = 2,
+    .Ki = 0,
+    .Kd = 0,
+    .TargetDefault = 0,
+    .OutputMax = 10,
+    .ErrorIntMax = 5
+  };
+
+  anglePID.Target = anglePID.TargetDefault; //setup angle PID
+  drivePID.Target = drivePID.TargetDefault; //setup drive PID, this is target speed
+  
+  lastLoopTime = millis();
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
-// Per-motor state for calcRPM
-long  prevCount1 = 0, prevCount2 = 0;
-unsigned long prevTime1 = 0, prevTime2 = 0;
-
 void loop() {
+  //float start_time = millis();
+  // --- MOTOR FLUTTER CODE BELOW ------------------------------------
+  BLEDevice central = BLE.central(); // Wait for a BLE central to connect
+  int command = 0;  // ← declare here so both if and else can see it
+
+  if (central) {
+  //   //Serial.print("Connected to central: ");
+  //   //Serial.println(central.address());
+
+  //   
+
+  //   // Keep running while connected
+  //   if (central.connected()) {
+  //     // Check if the characteristic was written
+  //     
+  // 
+  if (customCharacteristic.written()) {
+
+        // Read the single byte directly
+        const unsigned char* receivedData = customCharacteristic.value();
+        int command = receivedData[0];   // grab the byte as an int
+
+        //Serial.print("Received command: ");
+        //Serial.println(command);
+
+        customCharacteristic.writeValue("Data received");
+        drivePID.Target = setAveRPMWithFlutter(command);      // set target angle according to button press, and pass int, not char* 
+        difPWM = setDifPWMWithFlutter(command);
+      }
+    
+  } 
+
+  else {
+      drivePID.Target = drivePID.TargetDefault;      // set target angle according to button press, and pass int, not char* 
+      difPWM = 0; //setDifPWMWithFlutter(command);
+  }
+
+    //Serial.println("Disconnected from central.");
+  
+  
+
+  // --- NINAS LAST FIGHTING CHANCE CODE BELOW ---------------------------------
   static unsigned long lastPrint = 0;
   unsigned long now = millis();
 
-// Wait for a BLE central to connect
-  BLEDevice central = BLE.central();
+  float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
+  float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+  aveRPM = (rpm1 + rpm2)/2;
+  difRPM = rpm1 - rpm2;
 
-  if (central) {
-    Serial.print("Connected to central: ");
-    Serial.println(central.address());
-    // digitalWrite(LED_BUILTIN, HIGH); // Turn on LED to indicate connection
-
-    // Keep running while connected
-    while (central.connected()) {
-      // Check if the characteristic was written
-      if (customCharacteristic.written()) {
-       // Get the length of the received data
-        int length = customCharacteristic.valueLength();
-
-        // Read the received data
-        const unsigned char* receivedData = customCharacteristic.value();
-
-        // Create a properly terminated string
-        char receivedString[length + 1]; // +1 for null terminator
-        memcpy(receivedString, receivedData, length);
-        receivedString[length] = '\0'; // Null-terminate the string
-
-        // Print the received data to the Serial Monitor
-        Serial.print("Received data: ");
-        Serial.println(receivedString);
-
-
-        // Optionally, respond by updating the characteristic's value
-        customCharacteristic.writeValue("Data received");
-        speedPID_Target = setPWMWithFlutter(receivedString);
-
-        //for driving
-        LeftSpeed = calcRPM(encCount1, prevCount1, prevTime1);
-        RightSpeed = calcRPM(encCount2, prevCount2, prevTime2);
-
-        AveSpeed = (LeftSpeed + RightSpeed) / 2.0;
-        DifSpeed = LeftSpeed - RightSpeed;
-   
-        speedPID_Actual = AveSpeed;
-        
-        updatePID(speedPID_Kp, speedPID_Ki, speedPID_Kd, speedPID_Actual, speedPID_Target, speedPID_Out,
-        speedPID_ErrorInt, speedPID_Error0, speedPID_Error1);
-        anglePID_Target = speedPID_Out;
-        // Serial.print(" RPM1 = "); Serial.print(rpm1);
-        // Serial.print("  RPM2 = "); Serial.print(rpm2);
-
-        // for balancing
-        float tilt_angle = angle();
-
-        if ((tilt_angle >= -30)&&(tilt_angle <= 30)) {
-          anglePID_Actual = tilt_angle;
-          updatePID(anglePID_Kp, anglePID_Ki, anglePID_Kd, anglePID_Actual, anglePID_Target, anglePID_Out, 
-          anglePID_ErrorInt, anglePID_Error0, anglePID_Error1);
-
-          avePWM = anglePID_Out;
-    
-          pwm1 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-          pwm2 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-
-          if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
-          if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
-        }
-  
-        else {
-          pwm1 = 0;
-          pwm2 = 0;
-       }
-
-        setMotor1(pwm1);
-        setMotor2(pwm2);
-        
-      }
-    }
-
-    // digitalWrite(LED_BUILTIN, LOW); // Turn off LED when disconnected
-    Serial.println("Disconnected from central.");
-  }
-
-
-  // //for driving
-  //  LeftSpeed = calcRPM(encCount1, prevCount1, prevTime1);
-  //  RightSpeed = calcRPM(encCount2, prevCount2, prevTime2);
-
-  //  AveSpeed = (LeftSpeed + RightSpeed) / 2.0;
-  //  DifSpeed = LeftSpeed - RightSpeed;
-   
-  //  speedPID_Actual = AveSpeed;
-    
-  //   updatePID(speedPID_Kp, speedPID_Ki, speedPID_Kd,
-  //   speedPID_Actual, speedPID_Target, speedPID_Out,
-  //   speedPID_ErrorInt, speedPID_Error0, speedPID_Error1);
-  //   anglePID_Target = speedPID_Out;
-  //   // Serial.print(" RPM1 = "); Serial.print(rpm1);
-  //   // Serial.print("  RPM2 = "); Serial.print(rpm2);
-
-  // for balancing
   float tilt_angle = angle();
+  //Serial.println(tilt_angle);
+  float driveAngle;
 
   if ((tilt_angle >= -30)&&(tilt_angle <= 30)) {
-    anglePID_Actual = tilt_angle;
-    updatePID(anglePID_Kp, anglePID_Ki, anglePID_Kd, 
-    anglePID_Actual, anglePID_Target, anglePID_Out, 
-    anglePID_ErrorInt, anglePID_Error0, anglePID_Error1);
-
-    avePWM = anglePID_Out;
     
-    pwm1 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-    pwm2 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
+    if (drivePID.Target != 0) {
+      drivePID.Actual = aveRPM / 60; //convertinf RPM to RPS
+      updatePID(drivePID);
+      driveAngle = drivePID.Output;
+    } else {
+      driveAngle = 0;
+    }
+    anglePID.Target = driveAngle + anglePID.TargetDefault; //set target angle according to movement
+    anglePID.Actual = tilt_angle;
+    updatePID(anglePID);
 
-    if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
-    if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
+    avePWM = anglePID.Output;
+    
+    pwm1 = avePWM + difPWM/2;
+    pwm2 = avePWM - difPWM/2;
+
+    constrain(pwm1, -100, 100);
+    constrain(pwm2, -100, 100);
   }
   else {
     pwm1 = 0;
@@ -430,5 +403,5 @@ void loop() {
 
   setMotor1(pwm1);
   setMotor2(pwm2);
-
+  //Serial.println(millis() - start_time);
 }
