@@ -231,11 +231,11 @@ void updatePID(PID_t &pid){
 		pid.ErrorInt = 0;
 	}
 
-  constrain(pid.ErrorInt, -pid.ErrorIntMax, pid.ErrorIntMax);
+  pid.ErrorInt = constrain(pid.ErrorInt, -pid.ErrorIntMax, pid.ErrorIntMax);
 
   pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * (pid.Error0 - pid.Error1);
 
-  constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
+  pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
@@ -388,8 +388,8 @@ void loop() {
     pwm1 = avePWM + difPWM/2;
     pwm2 = avePWM - difPWM/2;
 
-    constrain(pwm1, -100, 100);
-    constrain(pwm2, -100, 100);
+    pwm1 = constrain(pwm1, -100, 100);
+    pwm2 = constrain(pwm2, -100, 100);
   }
   else {
     pwm1 = 0;

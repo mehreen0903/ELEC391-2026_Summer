@@ -12,6 +12,9 @@ struct PID_t {
   float ErrorInt;
   float OutMax;
   float OutMin;
+
+  float Time0;
+  float Time1;
 };
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
@@ -30,8 +33,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60; //old f is 36
-int db2f = 60, db2r = 60; //old f is 35
+int db1f = 67, db1r = 67; //old f is 36
+int db2f = 67, db2r = 67; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -157,21 +160,27 @@ float angle() {
 }
 
 void updatePID(PID_t &pid){
-  pid.Error1 = pid.Error0;
-  pid.Error0 = pid.Target-pid.Actual;
+    pid.Time1 = pid.Time0;
+    pid.Time0 = millis();
+    float dt = (pid.Time0 - pid.Time1) * 0.001;
 
-  if (pid.Ki != 0){
-		pid.ErrorInt += pid.Error0;
-	}else {
-		pid.ErrorInt = 0;
-	}
+    pid.Error1 = pid.Error0;
+    pid.Error0 = pid.Target-pid.Actual;
 
-  constrain(pid.ErrorInt,-50,50); //USED WRONG
+    if (pid.Ki != 0){
+        pid.ErrorInt += pid.Error0 * dt;
+    }else {
+        pid.ErrorInt = 0;
+    }
 
-  pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * (pid.Error0 - pid.Error1);
+    float derivative = (pid.Error0 - pid.Error1) / dt;
 
-  if (pid.Output > 100) {pid.Output = 100;}
-	if (pid.Output < -100) {pid.Output = -100;}
+    //pid.ErrorInt = constrain(pid.ErrorInt,-5,5); //USED WRONG
+
+    pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * derivative;
+
+    if (pid.Output > 100) {pid.Output = 100;}
+    if (pid.Output < -100) {pid.Output = -100;}
 }
 
 
@@ -203,8 +212,8 @@ void setup() {
   
   anglePID = {
     .Kp = 3,
-    .Ki = 0.08,
-    .Kd = 5,
+    .Ki = 8, //0.08,
+    .Kd = 0.05,//5,
     .Target = 1.18
   };
 

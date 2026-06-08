@@ -19,16 +19,13 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final _ble = FlutterReactiveBle();
 
-  StreamSubscription<DiscoveredDevice>?
-      _scanSub; // subscribe to bluetooth scanning stream
-  StreamSubscription<ConnectionStateUpdate>?
-      _connectSub; // subscribe to bluetooth connection stream
+  StreamSubscription<DiscoveredDevice>? _scanSub; // subscribe to bluetooth scanning stream
+  StreamSubscription<ConnectionStateUpdate>? _connectSub; // subscribe to bluetooth connection stream
   StreamSubscription<List<int>>? _notifySub;
 
   List<DiscoveredDevice> _devices = [];
   String? _selectedDeviceId; // will hold the device ID selected for connection
-  String?
-      _selectedDeviceName; // will hold the device name selected for connection
+  String? _selectedDeviceName; // will hold the device name selected for connection
   var _stateMessage = 'Scanning...'; // displays app status
   QualifiedCharacteristic? _writeCharacteristic;
 
@@ -151,12 +148,27 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
-  Widget _buildHoldButton({required IconData icon, required int command}) {
+  // // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
+  // Widget __buildTapButtonButton({required IconData icon, required int command}) {
+  //   return GestureDetector(
+  //     onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
+  //     onTapUp: _isConnected ? (_) => _sendCommand(0) : null, //STOP
+  //     onTapCancel: _isConnected ? () => _sendCommand(0) : null, //STOP
+  //     child: Container(
+  //       padding: const EdgeInsets.all(16),
+  //       decoration: BoxDecoration(
+  //         color: _isConnected ? Colors.blue : Colors.grey[400],
+  //         borderRadius: BorderRadius.circular(12),
+  //       ),
+  //       child: Icon(icon, color: Colors.white, size: 28),
+  //     ),
+  //   );
+  // }
+
+    // Simple tap button (no hold) for directional commands
+  Widget _buildTapButton({required IconData icon, required int command}) {
     return GestureDetector(
-      onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
-      onTapUp: _isConnected ? (_) => _sendCommand(0) : null, //STOP
-      onTapCancel: _isConnected ? () => _sendCommand(0) : null, //STOP
+      onTap: _isConnected ? () => _sendCommand(command) : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -229,7 +241,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildHoldButton(
+                    _buildTapButton(
                       icon: Icons.arrow_upward,
                       command: 1, //FORWARD
                     ),
@@ -239,17 +251,17 @@ class _MyHomePageState extends State<MyHomePage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildHoldButton(
+                    _buildTapButton(
                       icon: Icons.arrow_back,
                       command: 2, //LEFT
                     ),
                     const SizedBox(width: 10),
-                    _buildHoldButton(
+                    _buildTapButton(
                       icon: Icons.arrow_downward,
                       command: 3, //BACKWARD
                     ),
                     const SizedBox(width: 10),
-                    _buildHoldButton(
+                    _buildTapButton(
                       icon: Icons.arrow_forward,
                       command: 4, //RIGHT
                     ),
@@ -262,7 +274,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     ElevatedButton(
                       onPressed: _isConnected ? () => _sendCommand(5) : null,
-                      child: const Text('Send A'),
+                      child: const Text('Stop'), //changed from Stop A
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
