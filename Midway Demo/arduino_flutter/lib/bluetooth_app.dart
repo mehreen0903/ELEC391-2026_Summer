@@ -128,17 +128,17 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _notifySub = _ble.subscribeToCharacteristic(characteristic).listen((bytes) {
       setState(() {
-        _stateMessage = 'Data received: ${Utf8Decoder().convert(bytes)}';
+        _stateMessage = 'Data received: $bytes';
       });
     });
   }
 
-  Future<void> _sendCommand(String command) async {
+  Future<void> _sendCommand(int command) async {
     if (_writeCharacteristic != null) {
       try {
         await _ble.writeCharacteristicWithResponse(
           _writeCharacteristic!,
-          value: utf8.encode(command),
+          value: [command],
         );
         setState(() {
           _stateMessage = "Command '$command' sent!";
@@ -152,11 +152,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
-  Widget _buildHoldButton({required IconData icon, required String command}) {
+  Widget _buildHoldButton({required IconData icon, required int command}) {
     return GestureDetector(
       onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
-      onTapUp: _isConnected ? (_) => _sendCommand('STOP') : null,
-      onTapCancel: _isConnected ? () => _sendCommand('STOP') : null,
+      onTapUp: _isConnected ? (_) => _sendCommand(0) : null, //STOP
+      onTapCancel: _isConnected ? () => _sendCommand(0) : null, //STOP
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -231,7 +231,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     _buildHoldButton(
                       icon: Icons.arrow_upward,
-                      command: 'FORWARD',
+                      command: 1, //FORWARD
                     ),
                   ],
                 ),
@@ -241,17 +241,17 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     _buildHoldButton(
                       icon: Icons.arrow_back,
-                      command: 'LEFT',
+                      command: 2, //LEFT
                     ),
                     const SizedBox(width: 10),
                     _buildHoldButton(
                       icon: Icons.arrow_downward,
-                      command: 'BACKWARD',
+                      command: 3, //BACKWARD
                     ),
                     const SizedBox(width: 10),
                     _buildHoldButton(
                       icon: Icons.arrow_forward,
-                      command: 'RIGHT',
+                      command: 4, //RIGHT
                     ),
                   ],
                 ),
@@ -261,17 +261,17 @@ class _MyHomePageState extends State<MyHomePage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton(
-                      onPressed: _isConnected ? () => _sendCommand('A') : null,
+                      onPressed: _isConnected ? () => _sendCommand(5) : null,
                       child: const Text('Send A'),
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
-                      onPressed: _isConnected ? () => _sendCommand('B') : null,
+                      onPressed: _isConnected ? () => _sendCommand(6) : null,
                       child: const Text('Send B'),
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
-                      onPressed: _isConnected ? () => _sendCommand('C') : null,
+                      onPressed: _isConnected ? () => _sendCommand(7) : null,
                       child: const Text('Send C'),
                     ),
                   ],
