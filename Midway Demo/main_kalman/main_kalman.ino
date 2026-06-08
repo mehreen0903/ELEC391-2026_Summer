@@ -5,8 +5,9 @@ struct PID_t {
   float Kp;
   float Ki;
   float Kd;
-  float Actual;
   float Target;
+  float Actual;
+  //float Target;
   float Output;
   float Error0;
   float Error1;
@@ -78,7 +79,7 @@ float difRPM;
 
 // ── kalman variables ────────────────────────────────────────
 float kalAngle = 0.0; //output of kalman filter
-float kalError = 0.0; //error covariance (starts at 1.0 and updates dynamically)
+float kalError = 1.0; //error covariance (starts at 1.0 and updates dynamically)
 
 //tuning parameters
 float Q_process = 0.001; // Process noise variance (gyroscope noise per second)
@@ -177,8 +178,8 @@ float angle() {
     degreesAccY = -1 * atan(ay / az) * 180 / PI;
 
     //calculate time data
-    float currentLoopTime = millis();
-    float loopDuration = (currentLoopTime - lastLoopTime) / 1000.0f;
+    float currentLoopTime = micros();
+    float loopDuration = (currentLoopTime - lastLoopTime) / 1000000.0f;
     lastLoopTime = currentLoopTime;
     
     //KALMAN: TIME UPDATE
@@ -289,7 +290,8 @@ void setup() {
   anglePID = {
     .Kp = 3,
     .Ki = 0.05,
-    .Kd = 2  
+    .Kd = 2,
+    .Target = 0.8
   };
 
   avePWM = 0;
@@ -297,7 +299,7 @@ void setup() {
   aveRPM = 0;
   difRPM = 0;
     
-  lastLoopTime = millis();
+  lastLoopTime = micros();
 
 }
 
@@ -308,7 +310,7 @@ unsigned long prevTime1 = 0, prevTime2 = 0;
 
 void loop() {
   static unsigned long lastPrint = 0;
-  unsigned long now = millis();
+  unsigned long now = micros();
 
   float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
   float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
