@@ -1,21 +1,37 @@
 #include "Arduino_BMI270_BMM150.h"
+#include <PID_v1.h>
+#include <string.h>
+#define BUFFER_SIZE 20
 
-struct PID_t {
-  float Kp;
-  float Ki;
-  float Kd;  
-  float Target;
-  float Actual;
-  float Output;
-  float Error0;
-  float Error1;
-  float ErrorInt;
-  float OutMax;
-  float OutMin;
+//----------ANGLE PID---------------
+double angleInput;
+double angleOutput;
+double angleSetpoint;
 
-  float Time0;
-  float Time1;
-};
+// tuning gains
+double Kp = 3;
+double Ki = 0.08;
+double Kd = 0.5;
+
+// PID object
+PID anglePID(&angleInput,&angleOutput,&angleSetpoint,Kp, Ki, Kd, DIRECT);
+
+// ---------------- DRIVE PID ----------------
+double driveInput;
+double driveOutput;
+double driveSetpoint;
+
+double Kp_drive = 0.0;
+double Ki_drive = 0.0;
+double Kd_drive = 0.0;
+
+PID drivePID(&driveInput, &driveOutput, &driveSetpoint,Kp_drive, Ki_drive, Kd_drive, DIRECT);
+
+// Define a custom BLE service and characteristic --------------------
+BLEService customService("00000000-5EC4-4083-81CD-A10B8D5CF6EC");
+BLECharacteristic customCharacteristic(
+  "00000001-5EC4-4083-81CD-A10B8D5CF6EC", BLERead | BLEWrite | BLENotify, BUFFER_SIZE, false);
+
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
 const int ledPin    = LED_BUILTIN;
@@ -33,8 +49,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 58, db1r = 53; //old f is 36
-int db2f = 61, db2r = 49; //old f is 35
+int db1f = 60, db1r = 60; //old f is 36
+int db2f = 60, db2r = 60; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -49,25 +65,10 @@ float ax, ay, az;
 float degreesAccY = 0;
 
 
-PID_t anglePID;
-
-
 float avePWM;
 float difPWM;
 float aveRPM;
 float difRPM; 
-
-void PID_Init (PID_t &pid) {
-  pid.Actual = 0;
-  //pid.Target = 0;
-  pid.Output = 0;
-  pid.Error0 = 0;
-  pid.Error1 = 0;
-  pid.ErrorInt = 0;
-  pid.OutMax = 100;
-  pid.OutMin = -100;
-}
-
 
 // ── ISRs ──────────────────────────────────────────────────────────
 void ISR_enc1() {
@@ -159,30 +160,6 @@ float angle() {
   return angleComp;
 }
 
-void updatePID(PID_t &pid){
-    pid.Time1 = pid.Time0;
-    pid.Time0 = millis();
-    float dt = (pid.Time0 - pid.Time1) * 0.001;
-
-    pid.Error1 = pid.Error0;
-    pid.Error0 = pid.Target-pid.Actual;
-
-    if (pid.Ki != 0){
-        pid.ErrorInt += pid.Error0 * dt;
-    }else {
-        pid.ErrorInt = 0;
-    }
-
-    float derivative = (pid.Error0 - pid.Error1) / dt;
-
-    //pid.ErrorInt = constrain(pid.ErrorInt,-5,5); //USED WRONG
-
-    pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * derivative;
-
-    if (pid.Output > 100) {pid.Output = 100;}
-    if (pid.Output < -100) {pid.Output = -100;}
-}
-
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
@@ -208,14 +185,15 @@ void setup() {
 
   angleGyroPrev = 0;
 
-  PID_Init(anglePID);
-  
-  anglePID = {
-    .Kp = 3,
-    .Ki = 8, //0.08,
-    .Kd = 0.05,//5,
-    .Target = 1.18
-  };
+  angleSetpoint = 1.18;
+  driveSetpoint = 0;
+
+  anglePID.SetMode(AUTOMATIC);
+  drivePID.SetMode(AUTOMATIC);
+  anglePID.SetOutputLimits(-100, 100);
+  drivePID.SetOutputLimits(-20, 20);
+  anglePID.SetSampleTime(5);   // 
+  drivePID.SetSampleTime(20);          // slower is fine for velocity
 
   avePWM = 0;
   difPWM = 0;
@@ -231,34 +209,38 @@ long  prevCount1 = 0, prevCount2 = 0;
 unsigned long prevTime1 = 0, prevTime2 = 0;
 
 void loop() {
-  float start_time = millis();
-  static unsigned long lastPrint = 0;
-  unsigned long now = millis();
-
-  float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
-  float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+  // float start_time = millis();
+  // static unsigned long lastPrint = 0;
+  // unsigned long now = millis();
 
   float tilt_angle = angle();
   //Serial.println(tilt_angle);
 
   if ((tilt_angle >= -30)&&(tilt_angle <= 30)) {
-    anglePID.Actual = tilt_angle;
-    updatePID(anglePID);
 
-    avePWM = anglePID.Output;
+    if (anglePID.GetMode() == MANUAL) {
+        anglePID.SetMode(AUTOMATIC);
+    }
+
+    angleInput = tilt_angle;
+    anglePID.Compute();
+
+    avePWM = angleOutput;
     
     pwm1 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-    pwm2 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
+    pwm2 = avePWM - difPWM/2; //100.0 * (float)tilt_angle / 90.0;
 
     if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
 		if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
   }
+  
   else {
     pwm1 = 0;
     pwm2 = 0;
+    anglePID.SetMode(MANUAL); 
   }
 
   setMotor1(pwm1);
   setMotor2(pwm2);
-  Serial.println(millis() - start_time);
+  //Serial.println(millis() - start_time);
 }

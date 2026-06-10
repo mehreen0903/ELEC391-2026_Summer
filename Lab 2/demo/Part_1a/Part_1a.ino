@@ -88,7 +88,7 @@ void setup() {
   setMotor1(0);
   setMotor2(0);
 
-  //Serial.println("Starting ramp. Motors off, encoders zeroed.");
+  Serial.println("Starting ramp. Motors off, encoders zeroed.");
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
@@ -119,10 +119,10 @@ void loop() {
   if (now - lastPrint >= 100) {
     float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
     float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
-    // Serial.print("PWM1="); Serial.print(currentPWM1);
-    // Serial.print(" RPM1="); Serial.print(rpm1);
-    // Serial.print(" | PWM2="); Serial.print(currentPWM2);
-    // Serial.print(" RPM2="); Serial.println(rpm2);
+    Serial.print("PWM1="); Serial.print(currentPWM1);
+    Serial.print(" RPM1="); Serial.print(count1);
+    Serial.print(" | PWM2="); Serial.print(currentPWM2);
+    Serial.print(" RPM2="); Serial.println(count2);
     lastPrint = now;
   }
 
