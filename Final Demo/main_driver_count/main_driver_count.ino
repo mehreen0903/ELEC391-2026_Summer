@@ -37,8 +37,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 67, db1r = 67;  //old f is 36
-int db2f = 67, db2r = 67;  //old f is 35
+int db1f = 60, db1r = 60;  //old f is 36
+int db2f = 60, db2r = 60;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -87,7 +87,7 @@ void ISR_enc2() {
 // ── RPM Calculation ───────────────────────────────────────────────
 // Separate state for each motor
 float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime) {
-  unsigned long now = micros();
+  unsigned long now = millis();
   unsigned long dt = now - prevTime;
   if (dt == 0) return 0;
 
@@ -100,7 +100,7 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
   prevTime = now;
 
   float revs = (float)delta / 1920.0;    //MAKE INTO CONST!
-  return (revs / (float)dt) * 1000000.0f;  // RPS // changed from 60000 to 60000000 since we switched to micros()
+  return (revs / (float)dt) * 1000.0f;  // RPS // changed from 60000 to 60000000 since we switched to micros()
 }
 
 // ── Angle Calc & Control ──────────────────────────────────────────
@@ -116,11 +116,11 @@ float angle() {
 
     degreesAccY = -1 * atan(ay / az) * 180 / PI + 0.25;
 
-    float currentLoopTime = micros();
+    float currentLoopTime = millis();
     float loopDuration = currentLoopTime - lastLoopTime;
     lastLoopTime = currentLoopTime;
 
-    angleGyroX = angleComp + (gx - 0.3) * (loopDuration / 1000000.0); //changed from 1000 to 1000000 for micros()
+    angleGyroX = angleComp + (gx - 0.3) * (loopDuration / 1000.0); //changed from 1000 to 1000000 for micros()
     angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
     return angleComp;
   }
@@ -241,12 +241,14 @@ void updatePID(PID_t &pid) {
   }  
   float derivative = (pid.Error0 - pid.Error1) / dt;
   pid.Output = (pid.Kp * pid.Error0) + (pid.Ki * pid.ErrorInt) + (pid.Kd * derivative);
-  pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
+  //pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
+    if (pid.Output > 100) {pid.Output = 100;}
+    if (pid.Output < -100) {pid.Output = -100;}
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(9600);
+  //Serial.begin(9600);
   //while (!Serial);
 
   //--- MOTOR FLUTTER CODE BELOW-----------------------------------------
@@ -270,10 +272,10 @@ void setup() {
   BLE.addService(customService);
 
   // Set an initial value for the characteristic
-  customCharacteristic.writeValue("Waiting for data");
+ //  customCharacteristic.writeValue("Waiting for data");
 
   // Start advertising the service
-  BLE.advertise();
+ // BLE.advertise();
 
   //Serial.println("Bluetooth® device active, waiting for connections...");
 
@@ -300,9 +302,9 @@ void setup() {
 
   PID_Init(anglePID);  // 3, 0.05, 7.5, 1.11, 100, 50
   anglePID = {
-    .Kp = 2, //3,
-    .Ki = 0, //0.08,
-    .Kd = 0, //5,
+    .Kp = 3, //3,
+    .Ki = 8, //0.08,
+    .Kd = 0.05, //5,
     .TargetDefault = 1.18,
     .OutputMax = 100,
     .ErrorIntMax = 50, //5,
@@ -321,21 +323,20 @@ void setup() {
   anglePID.Target = anglePID.TargetDefault;  //setup angle PID
   drivePID.Target = drivePID.TargetDefault;  //setup drive PID, this is target speed
 
-  lastLoopTime = micros();
+  lastLoopTime = millis();
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
 void loop() {
-  driveCount++;
+ // driveCount++;
 
-  if (driveCount >= 5) {
+  if (driveCount < 0) {
     driveCount = 0;
 
     BLEDevice central = BLE.central();  // Wait for a BLE central to connect
 
     if (central) {
       //digitalWrite(LED_BUILTIN, HIGH);  // Turn on LED to indicate connection
-
       int command = 0;  // ← declare here so both if and else can see it
 
       // Keep running while connected
@@ -352,7 +353,6 @@ void loop() {
           difPWM = setTurnWithFlutter(command);
         }
       }
-
       else {
         drivePID.Target = drivePID.TargetDefault;  // set target angle according to button press, and pass int, not char*
         difPWM = 0;                                //setDifPWMWithFlutter(command);
@@ -372,29 +372,25 @@ void loop() {
 
   float tilt_angle = angle();
   //float driveAngle;
+    float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
+    float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+    // aveRPM = (rpm1 + rpm2) * 0.5;
+    // difRPM = rpm1 - rpm2;
 
   //Serial.println(tilt_angle);
 
   if ((tilt_angle >= -30) && (tilt_angle <= 30)) {
 
-    // if (drivePID.Target != 0) {
-    //   drivePID.Actual = aveRPM / 60;  //convertinf RPM to RPS
-    //   updatePID(drivePID);
-    //   driveAngle = drivePID.Output;
-    // } else {
-    //   driveAngle = 0;
-    // }
-    //anglePID.Target = driveAngle + anglePID.TargetDefault;  //set target angle according to movement
     anglePID.Actual = tilt_angle;
     updatePID(anglePID);
 
     avePWM = anglePID.Output;
 
-    pwm1 = avePWM + difPWM * 0.5;
-    pwm2 = avePWM - difPWM * 0.5;
+    pwm1 = avePWM + difPWM / 2;
+    pwm2 = avePWM - difPWM / 2;
 
-    pwm1 = constrain(pwm1, -100, 100);
-    pwm2 = constrain(pwm2, -100, 100);
+   if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
+	 if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
   } else {
     pwm1 = 0;
     pwm2 = 0;
