@@ -306,16 +306,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     _buildTimedSignalButton(
                       icon: Icons.keyboard_double_arrow_left,
-                      label: "0.4s Left",
+                      label: "0.47s Left",
                       command: 2, 
-                      duration: const Duration(milliseconds: 500), // Left is 0.5 seconds
+                      duration: const Duration(milliseconds: 470), // Left is 0.5 seconds
                     ),
                     const SizedBox(width: 15),
                     _buildTimedSignalButton(
                       icon: Icons.keyboard_double_arrow_right,
-                      label: "0.75s Right",
+                      label: "0.44s Right",
                       command: 4, 
-                      duration: const Duration(milliseconds: 350), // Right is 0.35 seconds
+                      duration: const Duration(milliseconds: 430), // Right is 0.35 seconds
                     ),
                   ],
                 ),

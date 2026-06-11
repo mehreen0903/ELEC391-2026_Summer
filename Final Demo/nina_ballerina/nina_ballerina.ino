@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60;  //old f is 36
-int db2f = 60, db2r = 60;  //old f is 35
+int db1f = 63, db1r = 63;  //old f is 36
+int db2f = 63, db2r = 63;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
