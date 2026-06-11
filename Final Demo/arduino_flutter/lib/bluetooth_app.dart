@@ -165,6 +165,22 @@ class _MyHomePageState extends State<MyHomePage> {
   //   );
   // }
 
+  // Function that sends a signal, custom timing duration
+  Future<void> _sendTimedSignal(int command, Duration duration) async {
+    if (!_isConnected) return;
+    
+    // Send the turn signal command (e.g., 2 for Left, 4 for Right)
+    await _sendCommand(command);
+    
+    // Wait for whatever duration is passed to this method
+    await Future.delayed(duration);
+    
+    // Send the stop command (5)
+    await _sendCommand(5); 
+  }
+
+
+
     // Simple tap button (no hold) for directional commands
   Widget _buildTapButton({required IconData icon, required int command}) {
     return GestureDetector(
@@ -176,6 +192,21 @@ class _MyHomePageState extends State<MyHomePage> {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: Colors.white, size: 28),
+      ),
+    );
+  }
+
+  //widget that adds two timed turn buttons
+  Widget _buildTimedSignalButton({ required IconData icon, required String label, 
+  required int command, 
+  required Duration duration,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: _isConnected ? () => _sendTimedSignal(command, duration) : null,
+      icon: Icon(icon),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
     );
   }
@@ -264,6 +295,27 @@ class _MyHomePageState extends State<MyHomePage> {
                     _buildTapButton(
                       icon: Icons.arrow_forward,
                       command: 4, //RIGHT
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 25),
+
+                // Timed turn button signals with individualized durations
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildTimedSignalButton(
+                      icon: Icons.keyboard_double_arrow_left,
+                      label: "0.4s Left",
+                      command: 2, 
+                      duration: const Duration(milliseconds: 500), // Left is 0.5 seconds
+                    ),
+                    const SizedBox(width: 15),
+                    _buildTimedSignalButton(
+                      icon: Icons.keyboard_double_arrow_right,
+                      label: "0.75s Right",
+                      command: 4, 
+                      duration: const Duration(milliseconds: 350), // Right is 0.35 seconds
                     ),
                   ],
                 ),
