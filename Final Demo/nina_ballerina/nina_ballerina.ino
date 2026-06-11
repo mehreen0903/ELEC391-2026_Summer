@@ -4,7 +4,7 @@
 #define BUFFER_SIZE 20
 
 //dt variables
-const unsigned long LOOP_TIME_MS = 5; //target loop time = 5 ms = 2000Hz
+const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
 
 struct PID_t {
@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 65, db1r = 65;  //old f is 36
-int db2f = 65, db2r = 65;  //old f is 35
+int db1f = 63, db1r = 63;  //old f is 36
+int db2f = 63, db2r = 63;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -156,6 +156,7 @@ float setDriveWithFlutter(int data) {
   return 0;  // Default target angle
 }
 
+// sets diff pwm
 float setTurnWithFlutter(int data) {
   switch (data) {
     case 1:  //FORWARD
@@ -217,7 +218,39 @@ void setMotor2(int pwm) {
 
 // ── BLE ──────────────────────────────────────────
 void handleBLE() {
-    
+    BLEDevice central = BLE.central();  // Wait for a BLE central to connect
+
+    if (central) {
+        //digitalWrite(LED_BUILTIN, HIGH);  // Turn on LED to indicate connection
+        int command = 0;  // ← declare here so both if and else can see it
+
+        // Keep running while connected
+        if (central.connected()) {
+        // Check if the characteristic was written
+          //Reset errors so derivative doe
+          // drivePID.Error0 = 0;
+          // drivePID.Error1 = 0;
+          // drivePID.ErrorInt = 0;
+        if (customCharacteristic.written()) {
+            // Read the single byte directly
+            const unsigned char *receivedData = customCharacteristic.value();
+            int command = receivedData[0];
+
+            customCharacteristic.writeValue("Data received");
+            drivePID.Target = setDriveWithFlutter(command);  // set target angle according to button press, and pass int, not char*
+            difPWM = setTurnWithFlutter(command);
+
+            // Reset errors so derivative doesn't spike on new command
+            drivePID.Error0 = 0;
+            drivePID.Error1 = 0;
+            drivePID.ErrorInt = 0;
+        }
+    }
+        else {
+        drivePID.Target = 0.0;  // set target angle according to button press, and pass int, not char*
+        difPWM = 0.0;                                //setDifPWMWithFlutter(command);
+        }
+    }
 }
 // ── PID Stoff ─────────────────────────────────────────────────────
 void PID_Init(PID_t &pid) {
@@ -247,9 +280,9 @@ void updatePID(PID_t &pid, float dt_seconds) {
   float derivative = (pid.Error0 - pid.Error1) / dt_seconds;
   pid.Output = (pid.Kp * pid.Error0) + (pid.Ki * pid.ErrorInt) + (pid.Kd * derivative);
 
-  //pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
-  if (pid.Output > 100) {pid.Output = 100;}
-  if (pid.Output < -100) {pid.Output = -100;}
+  pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
+  // if (pid.Output > 100) {pid.Output = 100;}
+  // if (pid.Output < -100) {pid.Output = -100;}
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
@@ -308,23 +341,23 @@ void setup() {
       ;
   }
 
-  PID_Init(anglePID);  // 3, 0.05, 7.5, 1.11, 100, 50
+  PID_Init(anglePID);  // For DB = 58: 2.1, 6, 0.08, 1.18, 100, 16
   anglePID = {
-    .Kp = 3, //3,
-    .Ki = 8, //0.08,
-    .Kd = 0.05, //5,
+    .Kp = 2.7, //2.1
+    .Ki = 7, //6
+    .Kd = 0.08, //0.08
     .TargetDefault = 1.18, // target angle
     .OutputMax = 100,
-    .ErrorIntMax = 16, //5,
+    .ErrorIntMax = 14, //16
   };
 
-  PID_Init(drivePID);
+  PID_Init(drivePID); 
   drivePID = {
-    .Kp = 0,
+    .Kp = 0.5,
     .Ki = 0,
     .Kd = 0,
     .TargetDefault = 0, // default target speed
-    .OutputMax = 10, //max target angle
+    .OutputMax = 3, //max target angle
     .ErrorIntMax = 5
   };
 
@@ -340,84 +373,59 @@ void loop() {
    //float start_time = millis();
     //core control loop window 
   unsigned long currentTime = micros();
-// if (currentTime - lastLoopTime >= LOOP_TIME_MS) {
-  float dt_seconds = (currentTime - lastLoopTime) / 1000000.0; // Convert to seconds
-  lastLoopTime = currentTime; //iterate time
-  //const float dt_seconds = 0.005f; //hard code dt_seconds to 5 ms to avoid integer rounding jitter
-  driveCount ++;
-  driveTime += dt_seconds;
-   
-  
-  float tilt_angle = angle(dt_seconds);
-
-  if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
-    anglePID.Actual = tilt_angle;
-    updatePID(anglePID, dt_seconds); 
-
-    avePWM = anglePID.Output;
-    pwm1 = avePWM + (difPWM / 2.0f);
-    pwm2 = avePWM - (difPWM / 2.0f);
-
-    pwm1 = constrain(pwm1, -100, 100);
-    pwm2 = constrain(pwm2, -100, 100);
-  // TO DO: we dont need this??
-  } else {
-    //fall protection
-    pwm1 = 0;
-    pwm2 = 0;
-    anglePID.ErrorInt = 0;  //clears the error so it doesn't jerk when propping it up again?
-    drivePID.ErrorInt = 0;
-  }
-
-  setMotor1(pwm1);
-  setMotor2(pwm2); 
-
-  if (driveCount >=5) {
-
-    float rpm1 = calcRPM(encCount1, prevCount1, dt_seconds);
-    float rpm2 = calcRPM(encCount2, prevCount2, dt_seconds);
-    aveRPM = (rpm1 + rpm2) * 0.5;
-    difRPM = rpm1 - rpm2;
-    drivePID.Actual = aveRPM;  //we changed it so that this is now in RPS!!
-    updatePID(drivePID, driveTime);
-    if (drivePID.Target != 0){
-        anglePID.Target = drivePID.Output + anglePID.TargetDefault;
-    } else {
-        anglePID.Target = anglePID.TargetDefault;
-    }
+  if (currentTime - lastLoopTime >= LOOP_TIME_MS) { //LOOP_TIME_MS currently set to 10000 microseconds (10 ms)
+    float dt_seconds = (currentTime - lastLoopTime) / 1000000.0; // Convert to seconds
+    lastLoopTime = currentTime; //iterate time
+    //const float dt_seconds = 0.005f; //hard code dt_seconds to 5 ms to avoid integer rounding jitter
     
-    BLEDevice central = BLE.central();  // Wait for a BLE central to connect
+    driveCount++;
+    driveTime += dt_seconds;
+    
+    float tilt_angle = angle(dt_seconds);
+    if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
+      anglePID.Actual = tilt_angle;
+      updatePID(anglePID, dt_seconds); 
 
-    if (central) {
-        //digitalWrite(LED_BUILTIN, HIGH);  // Turn on LED to indicate connection
-        int command = 0;  // ← declare here so both if and else can see it
+      avePWM = anglePID.Output;
+      pwm1 = avePWM + (difPWM / 2.0f);
+      pwm2 = avePWM - (difPWM / 2.0f);
 
-        // Keep running while connected
-        if (central.connected()) {
-        // Check if the characteristic was written
-        if (customCharacteristic.written()) {
-
-            // Read the single byte directly
-            const unsigned char *receivedData = customCharacteristic.value();
-            int command = receivedData[0];
-
-            customCharacteristic.writeValue("Data received");
-            drivePID.Target = setDriveWithFlutter(command);  // set target angle according to button press, and pass int, not char*
-            difPWM = setTurnWithFlutter(command);
-        }
-        }
-        else {
-        drivePID.Target = 0.0;  // set target angle according to button press, and pass int, not char*
-        difPWM = 0.0;                                //setDifPWMWithFlutter(command);
-        }
+      pwm1 = constrain(pwm1, -100, 100);
+      pwm2 = constrain(pwm2, -100, 100);
+    // TO DO: we dont need this??
+    } else {
+      //fall protection
+      pwm1 = 0; pwm2 = 0;
+      anglePID.ErrorInt = 0;
+      drivePID.ErrorInt = 0;
+      drivePID.Error0 = 0; 
+      drivePID.Error1 = 0;  // new commands after falling should work better now
     }
 
-    driveCount = 0;
-    driveTime = 0;
+    setMotor1(pwm1);
+    setMotor2(pwm2); 
+
+    if (driveCount >= 5) {
+      float rpm1 = calcRPM(encCount1, prevCount1, driveTime);
+      float rpm2 = calcRPM(encCount2, prevCount2, driveTime);
+      aveRPM = (rpm1 + rpm2) * 0.5;
+      difRPM = rpm1 - rpm2;
+      drivePID.Actual = aveRPM;  //we changed it so that this is now in RPS!!
+
+      updatePID(drivePID, driveTime);
+    //   if (drivePID.Target != 0){
+      anglePID.Target = drivePID.Output + anglePID.TargetDefault; //clamped drivepid.output to 3 deg
+    //   } else {
+    //       anglePID.Target = anglePID.TargetDefault;
+    //   }
+
+      handleBLE();
+
+      driveCount = 0;
+      driveTime = 0; //dt for drive pid
+    }
+
+    // float loopDuration = millis() - start_time;
+    // Serial.println(loopDuration);
   }
-
-  
-
-  // float loopDuration = millis() - start_time;
-  // Serial.println(loopDuration);
 }
