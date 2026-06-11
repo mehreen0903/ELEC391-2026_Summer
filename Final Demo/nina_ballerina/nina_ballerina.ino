@@ -344,11 +344,11 @@ void setup() {
   PID_Init(anglePID);  // For DB = 58: 2.1, 6, 0.08, 1.18, 100, 16
   anglePID = {
     .Kp = 2.7, //2.1
-    .Ki = 7, //6
-    .Kd = 0.08, //0.08
+    .Ki = 7.3, //6
+    .Kd = 0.06, //0.08
     .TargetDefault = 1.18, // target angle
     .OutputMax = 100,
-    .ErrorIntMax = 14, //16
+    .ErrorIntMax = 10, //16
   };
 
   PID_Init(drivePID); 
