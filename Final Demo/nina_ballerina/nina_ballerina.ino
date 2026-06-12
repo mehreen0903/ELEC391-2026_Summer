@@ -62,6 +62,7 @@ float degreesAccY = 0;
 // ── PID Struct Vars ───────────────────────────────────────────────
 PID_t anglePID;
 PID_t drivePID;
+PID_t turnPID;
 
 float avePWM = 0;
 float difPWM = 0;
@@ -361,11 +362,22 @@ void setup() {
     .ErrorIntMax = 5
   };
 
+  PID_Init(turnPID); 
+  turnPID = {
+    .Kp = 1,
+    .Ki = 0,
+    .Kd = 0,
+    .TargetDefault = 0, // default target speed
+    .OutputMax = 15, //max target angle
+    .ErrorIntMax = 5
+  };
+
   anglePID.Target = anglePID.TargetDefault;  //setup angle PID
   drivePID.Target = drivePID.TargetDefault;  //setup drive PID, this is target speed
-
+  turnPID.Target = turnPID.TargetDefault;    //setup turn PID, this is target angular velocity
   anglePID.ErrorInt = 0;  //clears the error so it doesn't jerk when propping it up again?
   drivePID.ErrorInt = 0;
+  turnPID.ErrorInt = 0;
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
