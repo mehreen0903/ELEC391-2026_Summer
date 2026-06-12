@@ -21,8 +21,6 @@ struct PID_t {
   float Error0;
   float Error1;
   float ErrorInt;
-  // float Time0;
-  // float Time1;
 };
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
@@ -41,8 +39,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 63, db1r = 63;  //old f is 36
-int db2f = 63, db2r = 63;  //old f is 35
+int db1f = 60, db1r = 60;  //old f is 36
+int db2f = 60, db2r = 60;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -68,6 +66,8 @@ float avePWM = 0;
 float difPWM = 0;
 float aveRPM = 0;
 float difRPM = 0;
+
+float turnPWM = 0;
 
 int driveCount = 0;
 float driveTime = 0;
@@ -138,7 +138,7 @@ float setDriveWithFlutter(int data) {
       return 0.0;  //max rpm is 300 ish
       break;
     case 3:  //BACKWARDS
-      return -0.0;
+      return 0.0;
       break;
     case 2:  //LEFT
       return 0.0;
@@ -239,8 +239,7 @@ void handleBLE() {
 
             customCharacteristic.writeValue("Data received");
             //drivePID.Target = setDriveWithFlutter(command);  // set target angle according to button press, and pass int, not char*
-            difPWM = setTurnWithFlutter(command);
-
+            turnPWM = setTurnWithFlutter(command);
             // Reset errors so derivative doesn't spike on new command
             drivePID.Error0 = 0;
             drivePID.Error1 = 0;
@@ -249,7 +248,7 @@ void handleBLE() {
     }
         else {
         drivePID.Target = 0.0;  // set target angle according to button press, and pass int, not char*
-        difPWM = 0.0;                                //setDifPWMWithFlutter(command);
+        turnPWM = 0.0;                                //setDifPWMWithFlutter(command);
         }
     }
 }
@@ -364,7 +363,7 @@ void setup() {
 
   PID_Init(turnPID); 
   turnPID = {
-    .Kp = 1,
+    .Kp = 10.0,
     .Ki = 0,
     .Kd = 0,
     .TargetDefault = 0, // default target speed
@@ -410,6 +409,7 @@ void loop() {
       pwm1 = 0; pwm2 = 0;
       anglePID.ErrorInt = 0;
       drivePID.ErrorInt = 0;
+      turnPID.ErrorInt = 0;
       drivePID.Error0 = 0; 
       drivePID.Error1 = 0;  // new commands after falling should work better now
     }
@@ -421,13 +421,21 @@ void loop() {
       float rpm1 = calcRPM(encCount1, prevCount1, driveTime);
       float rpm2 = calcRPM(encCount2, prevCount2, driveTime);
       aveRPM = (rpm1 + rpm2) * 0.5;
-      difRPM = rpm1 - rpm2;
+      difRPM = rpm2 - rpm1;
       drivePID.Actual = aveRPM;  //we changed it so that this is now in RPS!!
+      turnPID.Actual = difRPM;
 
       updatePID(drivePID, driveTime);
+      updatePID(turnPID, driveTime);
+      
       anglePID.Target = drivePID.Output + anglePID.TargetDefault; //clamped drivepid.output to 3 deg
       
       handleBLE();
+      if(turnPWM == 0){
+        difPWM = turnPID.Output;
+      } else {
+        difPWM = turnPWM;
+      }
 
       driveCount = 0;
       driveTime = 0; //dt for drive pid

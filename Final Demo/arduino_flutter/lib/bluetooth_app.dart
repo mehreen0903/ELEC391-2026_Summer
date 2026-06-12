@@ -148,23 +148,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  // // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
-  // Widget __buildTapButtonButton({required IconData icon, required int command}) {
-  //   return GestureDetector(
-  //     onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
-  //     onTapUp: _isConnected ? (_) => _sendCommand(0) : null, //STOP
-  //     onTapCancel: _isConnected ? () => _sendCommand(0) : null, //STOP
-  //     child: Container(
-  //       padding: const EdgeInsets.all(16),
-  //       decoration: BoxDecoration(
-  //         color: _isConnected ? Colors.blue : Colors.grey[400],
-  //         borderRadius: BorderRadius.circular(12),
-  //       ),
-  //       child: Icon(icon, color: Colors.white, size: 28),
-  //     ),
-  //   );
-  // }
-
   // Function that sends a signal, custom timing duration
   Future<void> _sendTimedSignal(int command, Duration duration) async {
     if (!_isConnected) return;
@@ -179,9 +162,7 @@ class _MyHomePageState extends State<MyHomePage> {
     await _sendCommand(5); 
   }
 
-
-
-    // Simple tap button (no hold) for directional commands
+  // Simple tap button for directional commands
   Widget _buildTapButton({required IconData icon, required int command}) {
     return GestureDetector(
       onTap: _isConnected ? () => _sendCommand(command) : null,
