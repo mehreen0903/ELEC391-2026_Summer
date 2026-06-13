@@ -1,4 +1,4 @@
-#include "Arduino_BMI270_BMM150.h"
+#include "customIMU.h"
 #include <ArduinoBLE.h>
 #include <string.h>
 #define BUFFER_SIZE 20
@@ -6,7 +6,7 @@
 // Drive & turn implemented. Turn unlimited. Drive limited to 50 cm (3820 encoder counts)
 
 //dt variables
-const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
+const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
 
 struct PID_t {
@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 65, db1r = 65;  //old f is 36
-int db2f = 65, db2r = 65;  //old f is 35
+int db1f = 60, db1r = 60;  //old f is 36
+int db2f = 60, db2r = 60;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -55,7 +55,7 @@ float angleGyroX = 0;
 float angleGyroPrev = 0;
 float angleComp = 0;
 float degreesAccY = 0;
-//float turnAngle = 0;
+float turnAngle = 0;
 
 // ── PID Struct Vars ───────────────────────────────────────────────
 PID_t anglePID;
@@ -134,7 +134,7 @@ float angle(float dt_seconds) {
     angleGyroX = angleComp + (gx - 0.3f) * (dt_seconds);
     angleComp = (k * angleGyroX) + ((1.0f - k) * degreesAccY);
 
-    //turnAngle += (gz+0.06f) * dt_seconds;
+    turnAngle += (gz+0.06f) * dt_seconds;
     
   }
   return angleComp;
@@ -388,6 +388,12 @@ void loop() {
     
     float tilt_angle = angle(dt_seconds);
 
+    if(turnPWM != 0 && abs(turnAngle) < 41){
+      difPWM = turnPWM;
+    } else {
+      difPWM = turnPID.Output;
+    }
+
     if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
       anglePID.Actual = tilt_angle;
       updatePID(anglePID, dt_seconds); 
@@ -428,10 +434,8 @@ void loop() {
       
       handleBLE(); // set drivePWM and turnPWM w/ bleh
 
-      if (turnPWM != 0) {
-        difPWM = turnPWM;
-      } else {
-        difPWM = turnPID.Output;
+      if (turnPWM == 0) {
+      turnAngle = 0;
       }
 
       if (driveCommand == 0) {
@@ -451,8 +455,8 @@ void loop() {
     //     anglePID.Target = -drivePID.Output + anglePID.TargetDefault;
     //   }
 
-      driveCount = 0;
-      driveTime = 0; //dt for drive pid
+      // driveCount = 0;
+      // driveTime = 0; //dt for drive pid
     }
   }
 }
