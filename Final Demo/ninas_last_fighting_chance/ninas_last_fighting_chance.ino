@@ -1,5 +1,7 @@
 #include "Arduino_BMI270_BMM150.h"
 
+// Balancing code for midway demo
+
 struct PID_t {
   float Kp;
   float Ki;

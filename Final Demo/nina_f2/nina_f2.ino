@@ -3,6 +3,8 @@
 #include <string.h>
 #define BUFFER_SIZE 20
 
+// Drive & turn implemented. Turn unlimited. Drive limited to 50 cm (3820 encoder counts)
+
 //dt variables
 const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
@@ -47,15 +49,13 @@ volatile long encCount1 = 0;
 volatile long encCount2 = 0;
 // Per-motor state for calcRPM
 long prevCount1 = 0, prevCount2 = 0;
-//unsigned long prevTime1 = 0, prevTime2 = 0;
 
 // -- Acc and gyro vars ------------------------------------------
 float angleGyroX = 0;
 float angleGyroPrev = 0;
 float angleComp = 0;
-//float lastLoopTime = 0;
-//float ax, ay, az;
 float degreesAccY = 0;
+//float turnAngle = 0;
 
 // ── PID Struct Vars ───────────────────────────────────────────────
 PID_t anglePID;
@@ -72,6 +72,9 @@ float turnPWM = 0;
 
 int driveCount = 0;
 float driveTime = 0;
+float driveEnc1 = 0;
+float driveEnc2 = 0;
+float driveCommand = 0;
 
 // Define a custom BLE service and characteristic --------------------
 BLEService customService("00000000-5EC4-4083-81CD-A10B8D5CF6EC");
@@ -93,7 +96,7 @@ void ISR_enc2() {
 
 // ── RPM Calculation ───────────────────────────────────────────────
 // Separate state for each motor
-float calcRPM(volatile long &encCount, long &prevCount, float dt_seconds) { //CORRECTED ENCODER
+float calcRPM(volatile long &encCount, long &prevCount, float dt_seconds, float &driveEnc) { //CORRECTED ENCODER
 //   unsigned long now = millis();
 //   unsigned long dt = now - prevTime;
 //   if (dt == 0) return 0;
@@ -104,7 +107,8 @@ float calcRPM(volatile long &encCount, long &prevCount, float dt_seconds) { //CO
 
   long delta = current - prevCount;
   prevCount = current;
-  //prevTime = now;
+
+  driveEnc += (float)delta;
 
   float revs = (float)delta / 1920.0f;    //MAKE INTO CONST!
   return -revs / dt_seconds;
@@ -129,6 +133,9 @@ float angle(float dt_seconds) {
 
     angleGyroX = angleComp + (gx - 0.3f) * (dt_seconds);
     angleComp = (k * angleGyroX) + ((1.0f - k) * degreesAccY);
+
+    //turnAngle += (gz+0.06f) * dt_seconds;
+    
   }
   return angleComp;
 }
@@ -223,34 +230,29 @@ void handleBLE() {
     BLEDevice central = BLE.central();  // Wait for a BLE central to connect
 
     if (central) {
-        //digitalWrite(LED_BUILTIN, HIGH);  // Turn on LED to indicate connection
-        int command = 0;  // TODO: dont need this since else doesnt use it
+      int command = 0;  // TODO: dont need this since else doesnt use it
 
-        // Keep running while connected
-        if (central.connected()) {
-          // Check if the characteristic was written
-          //Reset errors so derivative doe
-          // drivePID.Error0 = 0;
-          // drivePID.Error1 = 0;
-          // drivePID.ErrorInt = 0;
+      // Keep running while connected
+      if (central.connected()) {
+        // Check if the characteristic was written
         if (customCharacteristic.written()) {
           // Read the single byte directly
           const unsigned char *receivedData = customCharacteristic.value();
           int command = receivedData[0];
 
           customCharacteristic.writeValue("Data received");
-          drivePID.Target = setDriveWithFlutter(command); // adds pwm
+          driveCommand = setDriveWithFlutter(command); // adds pwm
           turnPWM  = setTurnWithFlutter(command);
           // Reset errors so derivative doesn't spike on new command
         //   drivePID.Error0 = 0;
         //   drivePID.Error1 = 0;
           drivePID.ErrorInt = 0;
         }
-    }
-        else {
-          drivePID.Target = 0.0;
-          turnPWM = 0.0;  //setDifPWMWithFlutter(command);
-        }
+      }
+      else {
+        driveCommand = 0.0;
+        turnPWM = 0.0;  //setDifPWMWithFlutter(command);
+      }
     }
 }
 // ── PID Stoff ─────────────────────────────────────────────────────
@@ -264,11 +266,6 @@ void PID_Init(PID_t &pid) {
 }
 
 void updatePID(PID_t &pid, float dt_seconds) {
-//   //if (dt <= 0) return;
-//   pid.Time1 = pid.Time0; // old time when last called
-//   pid.Time0 = millis(); // current time in milliseconds
-//   float dt = (pid.Time0 - pid.Time1) * 0.001; //convert to seconds
-  
   pid.Error1 = pid.Error0;
   pid.Error0 = pid.Target - pid.Actual;
 
@@ -282,13 +279,11 @@ void updatePID(PID_t &pid, float dt_seconds) {
   pid.Output = (pid.Kp * pid.Error0) + (pid.Ki * pid.ErrorInt) + (pid.Kd * derivative);
 
   pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
-  // if (pid.Output > 100) {pid.Output = 100;}
-  // if (pid.Output < -100) {pid.Output = -100;}
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  // Serial.begin(9600);
+  //Serial.begin(9600);
   //while (!Serial);
   //--- MOTOR FLUTTER CODE BELOW-----------------------------------------
   // Initialize the built-in LED to indicate connection status
@@ -318,8 +313,6 @@ void setup() {
 
   // Start advertising the service
   BLE.advertise();
-
-  //Serial.println("Bluetooth® device active, waiting for connections...");
 
   //--- NINAS LAST FIGHTING CHANCE CODE BELOW ----------------------------
   pinMode(motor1in1, OUTPUT);
@@ -394,6 +387,7 @@ void loop() {
     driveTime += dt_seconds;
     
     float tilt_angle = angle(dt_seconds);
+
     if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
       anglePID.Actual = tilt_angle;
       updatePID(anglePID, dt_seconds); 
@@ -419,8 +413,9 @@ void loop() {
     setMotor2(pwm2); 
 
     if (driveCount >= 5) {
-      float rpm1 = calcRPM(encCount1, prevCount1, driveTime);
-      float rpm2 = calcRPM(encCount2, prevCount2, driveTime);
+      float rpm1 = calcRPM(encCount1, prevCount1, driveTime, driveEnc1);
+      float rpm2 = calcRPM(encCount2, prevCount2, driveTime, driveEnc2);
+
       aveRPM = (rpm1 + rpm2) * 0.5;
       difRPM = rpm2 - rpm1;
       drivePID.Actual = aveRPM;  //we changed it so that this is now in RPS!!
@@ -433,10 +428,21 @@ void loop() {
       
       handleBLE(); // set drivePWM and turnPWM w/ bleh
 
-      if(turnPWM == 0){
-        difPWM = turnPID.Output;
-      } else {
+      if (turnPWM != 0) {
         difPWM = turnPWM;
+      } else {
+        difPWM = turnPID.Output;
+      }
+
+      if (driveCommand == 0) {
+        driveEnc1 = 0;
+        driveEnc2 = 0;
+      }
+
+      if(driveCommand != 0 && abs((driveEnc1 + driveEnc2)/2.0f) < 3840){
+        drivePID.Target = driveCommand;
+      } else {
+        drivePID.Target = 0.0;        
       }
 
     //   if(drivePWM == 0){

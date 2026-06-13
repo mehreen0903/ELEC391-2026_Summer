@@ -1,23 +1,22 @@
-#include "Arduino_BMI270_BMM150.h"
-
-// Balancing with dt (but recalculated for every function)
+#include "customIMU.h"
 
 struct PID_t {
   float Kp;
   float Ki;
-  float Kd;  
-  float Target;
+  float Kd;
+  float TargetDefault;
+  float OutputMax;
+  float ErrorIntMax;
+
   float Actual;
+  float Target;
   float Output;
   float Error0;
   float Error1;
   float ErrorInt;
-  float OutMax;
-  float OutMin;
-
-  float Time0;
-  float Time1;
 };
+
+unsigned long lastLoopTime = 0;
 
 // ── Pin Definitions (CHANGED FROM PART 3) ─────────────────────────
 const int ledPin    = LED_BUILTIN;
@@ -35,39 +34,38 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 58, db1r = 53; //old f is 36
-int db2f = 61, db2r = 49; //old f is 35
+int db1f = 62, db1r = 62; //old f is 36
+int db2f = 62, db2r = 62; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
 volatile long encCount2 = 0;
 
 // -- Acc and gyro vars ------------------------------------------
-float angleGyroX;
-float angleGyroPrev;
+float angleGyroX = 0;
+float angleGyroPrev = 0;
 float angleComp = 0;
-float lastLoopTime = 0;
-float ax, ay, az;
 float degreesAccY = 0;
 
-
 PID_t anglePID;
+PID_t drivePID;
+PID_t turnPID;
 
+float avePWM = 0;
+float difPWM = 0;
+float aveRPM = 0;
+float difRPM = 0; 
 
-float avePWM;
-float difPWM;
-float aveRPM;
-float difRPM; 
+int driveCount = 0;
+float driveTime = 0;
 
-void PID_Init (PID_t &pid) {
+void PID_Init(PID_t &pid) {
   pid.Actual = 0;
-  //pid.Target = 0;
+  pid.Target = 0;
   pid.Output = 0;
   pid.Error0 = 0;
   pid.Error1 = 0;
   pid.ErrorInt = 0;
-  pid.OutMax = 100;
-  pid.OutMin = -100;
 }
 
 
@@ -86,10 +84,7 @@ void ISR_enc2() {
 
 // ── RPM Calculation ───────────────────────────────────────────────
 // Separate state for each motor
-float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime) {
-  unsigned long now = millis();
-  unsigned long dt = now - prevTime;
-  if (dt == 0) return 0;
+float calcRPM(volatile long &encCount, long &prevCount, float dt_seconds) {
 
   noInterrupts();
   long current = encCount;
@@ -97,10 +92,9 @@ float calcRPM(volatile long &encCount, long &prevCount, unsigned long &prevTime)
 
   long delta = current - prevCount;
   prevCount = current;
-  prevTime = now;
 
-  float revs = (float)delta / 1920.0; //MAKE INTO CONST!
-  return (revs / (float)dt) * 60000.0f;   // RPM
+  float revs = (float)delta / 1920.0f;    //MAKE INTO CONST!
+  return -revs / dt_seconds;
 }
 
 // ── H-Bridge Control ──────────────────────────────────────────────
@@ -136,7 +130,7 @@ void setMotor2(int pwm) {
   }
 }
 
-float angle() {
+float angle(float dt_seconds) {
   float gx, gy, gz;
   float ax, ay, az;
   float k = 0.99;
@@ -148,48 +142,44 @@ float angle() {
 
     degreesAccY = -1 * atan(ay / az) * 180 / PI + 0.25;
 
-    float currentLoopTime = millis();
-    float loopDuration = currentLoopTime - lastLoopTime;
-    lastLoopTime = currentLoopTime;
+    angleGyroX = angleComp + (gx - 0.3f) * (dt_seconds);
+    angleComp = (k * angleGyroX) + ((1.0f - k) * degreesAccY);
 
-    angleGyroX = angleComp + (gx-0.3) * (loopDuration / 1000.0);
-    angleComp = (k * angleGyroX) + ((1 - k) * degreesAccY);
-    return angleComp;
+    //turnAngle += (gz+0.06f) * dt_seconds;
+    //Serial.println(gz);
   }
-
-  // Safe fallback — return last known good angle instead of garbage
   return angleComp;
 }
 
-void updatePID(PID_t &pid){
-    pid.Time1 = pid.Time0;
-    pid.Time0 = millis();
-    float dt = (pid.Time0 - pid.Time1) * 0.001;
+void updatePID(PID_t &pid, float dt_seconds) {
+  
+  pid.Error1 = pid.Error0;
+  pid.Error0 = pid.Target - pid.Actual;
 
-    pid.Error1 = pid.Error0;
-    pid.Error0 = pid.Target-pid.Actual;
+  if (pid.Ki != 0) {
+    pid.ErrorInt += pid.Error0 * dt_seconds;
+    pid.ErrorInt = constrain(pid.ErrorInt, -pid.ErrorIntMax, pid.ErrorIntMax);
+  } else {
+    pid.ErrorInt = 0;
+  }  
+  float derivative = (pid.Error0 - pid.Error1) / dt_seconds;
+  pid.Output = (pid.Kp * pid.Error0) + (pid.Ki * pid.ErrorInt) + (pid.Kd * derivative);
 
-    if (pid.Ki != 0){
-        pid.ErrorInt += pid.Error0 * dt;
-    }else {
-        pid.ErrorInt = 0;
-    }
-
-    float derivative = (pid.Error0 - pid.Error1) / dt;
-
-    //pid.ErrorInt = constrain(pid.ErrorInt,-5,5); //USED WRONG
-
-    pid.Output = pid.Kp * pid.Error0 + pid.Ki * pid.ErrorInt + pid.Kd * derivative;
-
-    if (pid.Output > 100) {pid.Output = 100;}
-    if (pid.Output < -100) {pid.Output = -100;}
+  pid.Output = constrain(pid.Output, -pid.OutputMax, pid.OutputMax);
 }
 
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  //Serial.begin(9600);
+    Serial.begin(9600);
+    Serial.println("Hello World");
+
+    if (!IMU.begin()) {
+   Serial.println("Failed to initialize IMU!");
+    while (1);
+  }
   //while (!Serial);
+  lastLoopTime = micros();
 
   pinMode(motor1in1, OUTPUT); pinMode(motor1in2, OUTPUT);
   pinMode(motor2in1, OUTPUT); pinMode(motor2in2, OUTPUT);
@@ -202,65 +192,109 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(enc1A), ISR_enc1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(enc2A), ISR_enc2, CHANGE);
-
+  
+  //IMU.setAccelODR(100);  // 25 / 50 / 100 / 200 / 400 Hz
+  //IMU.setGyroODR(400);
   if (!IMU.begin()) {
-   // Serial.println("Failed to initialize IMU!");
+   Serial.println("Failed to initialize IMU!");
     while (1);
   }
 
-  angleGyroPrev = 0;
+  //angleGyroPrev = 0;
 
-  PID_Init(anglePID);
-  
+  PID_Init(anglePID);  
   anglePID = {
     .Kp = 3,
     .Ki = 8, //0.08,
     .Kd = 0.05,//5,
-    .Target = 1.18
+    .TargetDefault = 1.18,
+    .OutputMax = 100,
+    .ErrorIntMax = 12
   };
 
-  avePWM = 0;
-  difPWM = 0;
-  aveRPM = 0;
-  difRPM = 0;
-    
-  lastLoopTime = millis();
+  PID_Init(drivePID); 
+  drivePID = {
+    .Kp = 1,
+    .Ki = 0.75,
+    .Kd = 0,
+    .TargetDefault = 0, // default target speed
+    .OutputMax = 2, //max target angle
+    .ErrorIntMax = 2.67
+  };
+
+  PID_Init(turnPID); 
+  turnPID = {
+    .Kp = 0,
+    .Ki = 0,
+    .Kd = 0,
+    .TargetDefault = 0, // default target speed
+    .OutputMax = 15, //max target angle
+    .ErrorIntMax = 5
+  };
+
+  anglePID.Target = anglePID.TargetDefault;
+  drivePID.Target = drivePID.TargetDefault;
+  turnPID.Target = turnPID.TargetDefault;
+  anglePID.ErrorInt = 0;
+  drivePID.ErrorInt = 0;
+  turnPID.ErrorInt = 0;
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
 // Per-motor state for calcRPM
 long  prevCount1 = 0, prevCount2 = 0;
-unsigned long prevTime1 = 0, prevTime2 = 0;
+//unsigned long prevTime1 = 0, prevTime2 = 0;
 
 void loop() {
-  float start_time = millis();
-  static unsigned long lastPrint = 0;
-  unsigned long now = millis();
 
-  float rpm1 = calcRPM(encCount1, prevCount1, prevTime1);
-  float rpm2 = calcRPM(encCount2, prevCount2, prevTime2);
+  unsigned long currentTime = micros();
 
-  float tilt_angle = angle();
-  //Serial.println(tilt_angle);
+  float dt_seconds = (currentTime - lastLoopTime) / 1000000.0;
+  lastLoopTime = currentTime;
 
-  if ((tilt_angle >= -30)&&(tilt_angle <= 30)) {
+  driveCount++;
+  driveTime += dt_seconds;
+
+  float tilt_angle = angle(dt_seconds);
+
+  if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
     anglePID.Actual = tilt_angle;
-    updatePID(anglePID);
+    updatePID(anglePID, dt_seconds); 
 
     avePWM = anglePID.Output;
-    
-    pwm1 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
-    pwm2 = avePWM + difPWM/2; //100.0 * (float)tilt_angle / 90.0;
+    pwm1 = avePWM + (difPWM / 2.0f);
+    pwm2 = avePWM - (difPWM / 2.0f);
+    Serial.print(pwm1);
+    Serial.print(" ");
+    Serial.println(pwm2);
 
-    if (pwm1 > 100) {pwm1 = 100;} else if (pwm1 < -100) {pwm1 = -100;}
-		if (pwm2 > 100) {pwm2 = 100;} else if (pwm2 < -100) {pwm2 = -100;}
-  }
-  else {
-    pwm1 = 0;
-    pwm2 = 0;
-  }
+  } else {
+    pwm1 = 0; pwm2 = 0;
+    anglePID.ErrorInt = 0;
+    drivePID.ErrorInt = 0;
+    turnPID.ErrorInt = 0;
+    drivePID.Error0 = 0; 
+    drivePID.Error1 = 0;  // new commands after falling should work better now
+  }  
 
   setMotor1(pwm1);
   setMotor2(pwm2);
-  Serial.println(millis() - start_time);
+  
+  if (driveCount >= 10) {
+    float rpm1 = calcRPM(encCount1, prevCount1, driveTime);
+    float rpm2 = calcRPM(encCount2, prevCount2, driveTime);
+    aveRPM = (rpm1 + rpm2) * 0.5;
+    difRPM = rpm2 - rpm1;
+    drivePID.Actual = aveRPM;  //we changed it so that this is now in RPS!!
+    turnPID.Actual = difRPM;
+
+    updatePID(drivePID, driveTime);
+    updatePID(turnPID, driveTime);
+    
+    anglePID.Target = drivePID.Output + anglePID.TargetDefault; //clamped drivepid.output to 3 deg
+    difPWM = turnPID.Output;
+
+    driveCount = 0;
+    driveTime = 0; //dt for drive pid
+  }
 }

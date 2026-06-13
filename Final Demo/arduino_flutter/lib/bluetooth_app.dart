@@ -148,6 +148,23 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  // // 🟢 PLACE THE HELPER METHOD RIGHT HERE 🟢
+  // Widget __buildTapButtonButton({required IconData icon, required int command}) {
+  //   return GestureDetector(
+  //     onTapDown: _isConnected ? (_) => _sendCommand(command) : null,
+  //     onTapUp: _isConnected ? (_) => _sendCommand(0) : null, //STOP
+  //     onTapCancel: _isConnected ? () => _sendCommand(0) : null, //STOP
+  //     child: Container(
+  //       padding: const EdgeInsets.all(16),
+  //       decoration: BoxDecoration(
+  //         color: _isConnected ? Colors.blue : Colors.grey[400],
+  //         borderRadius: BorderRadius.circular(12),
+  //       ),
+  //       child: Icon(icon, color: Colors.white, size: 28),
+  //     ),
+  //   );
+  // }
+
   // Function that sends a signal, custom timing duration
   Future<void> _sendTimedSignal(int command, Duration duration) async {
     if (!_isConnected) return;
@@ -162,7 +179,9 @@ class _MyHomePageState extends State<MyHomePage> {
     await _sendCommand(5); 
   }
 
-  // Simple tap button for directional commands
+
+
+    // Simple tap button (no hold) for directional commands
   Widget _buildTapButton({required IconData icon, required int command}) {
     return GestureDetector(
       onTap: _isConnected ? () => _sendCommand(command) : null,
@@ -287,16 +306,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     _buildTimedSignalButton(
                       icon: Icons.keyboard_double_arrow_left,
-                      label: "0.47s Left",
+                      label: "1s Left",
                       command: 2, 
-                      duration: const Duration(milliseconds: 470), // Left is 0.5 seconds
+                      duration: const Duration(milliseconds: 1000), // Left 
                     ),
                     const SizedBox(width: 15),
                     _buildTimedSignalButton(
                       icon: Icons.keyboard_double_arrow_right,
-                      label: "0.44s Right",
+                      label: "1s Right",
                       command: 4, 
-                      duration: const Duration(milliseconds: 430), // Right is 0.35 seconds
+                      duration: const Duration(milliseconds: 1000), // Right 
                     ),
                   ],
                 ),
