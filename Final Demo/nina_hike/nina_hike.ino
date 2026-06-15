@@ -1,4 +1,4 @@
-#include "Arduino_BMI270_BMM150.h"
+#include "customIMU.h"
 #include <ArduinoBLE.h>
 #include <string.h>
 #define BUFFER_SIZE 20
@@ -6,7 +6,7 @@
 // Should be ramp code
 
 //dt variables
-const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
+const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
 
 struct PID_t {
@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60;  //old f is 36
-int db2f = 60, db2r = 60;  //old f is 35
+int db1f = 65, db1r = 65;  //old f is 36
+int db2f = 65, db2r = 65;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -197,9 +197,9 @@ float setTurnWithFlutter(int data) {
 float setTargetWithFlutter(int data) {
   switch(data) {
     case 8: //add 4 degrees
-      return 3.5;
+      return 4;
     case 9: //minus 4 degrees
-      return -3.5;
+      return -4;
     default: //dont change target angle
       return 0;
   }
@@ -385,7 +385,7 @@ void setup() {
 
   PID_Init(turnPID); 
   turnPID = {
-    .Kp = 10.0,
+    .Kp = 15.0,
     .Ki = 0,
     .Kd = 0,
     .TargetDefault = 0, // default target speed
