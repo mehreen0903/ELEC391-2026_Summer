@@ -34,8 +34,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60; //old f is 36
-int db2f = 60, db2r = 60; //old f is 35
+int db1f = 65, db1r = 65; //old f is 36
+int db2f = 67, db2r = 65; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -136,7 +136,7 @@ float angle(float dt_seconds) {
   float k = 0.99;
 
   // Only compute if BOTH are available
-  if (IMU.accelerationAvailable() || IMU.gyroscopeAvailable()) {
+  if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
     IMU.readAcceleration(ax, ay, az);
     IMU.readGyroscope(gx, gy, gz);
 
@@ -172,9 +172,9 @@ void updatePID(PID_t &pid, float dt_seconds) {
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(9600);
-  delay(1500);
-  Serial.println("Hello World");
+  // Serial.begin(9600);
+  // delay(1500);
+  // Serial.println("Hello World");
     //IMU.setAccelODR(100);  // 25 / 50 / 100 / 200 / 400 Hz
     //IMU.setGyroODR(400);
   if (!IMU.begin()) {
@@ -215,22 +215,22 @@ void setup() {
 
   PID_Init(drivePID); 
   drivePID = {
-    .Kp = 1,
-    .Ki = 0.75,
-    .Kd = 0,
+    .Kp = 2,
+    .Ki = 1.5,
+    .Kd = 0.005,
     .TargetDefault = 0, // default target speed
-    .OutputMax = 2, //max target angle
-    .ErrorIntMax = 2.67
+    .OutputMax = 2.0, //max target angle
+    .ErrorIntMax = 1.33
   };
 
   PID_Init(turnPID); 
   turnPID = {
-    .Kp = 0,
-    .Ki = 0,
+    .Kp = 15,
+    .Ki = 1,
     .Kd = 0,
     .TargetDefault = 0, // default target speed
-    .OutputMax = 15, //max target angle
-    .ErrorIntMax = 5
+    .OutputMax = 15.0, //max target angle
+    .ErrorIntMax = 15.0
   };
 
   anglePID.Target = anglePID.TargetDefault;
@@ -250,7 +250,7 @@ void loop() {
 
   unsigned long currentTime = micros();
 
-  if (currentTime - lastLoopTime >= 5000.0) {
+  if (currentTime - lastLoopTime >= 4000.0) {
 
     float dt_seconds = (currentTime - lastLoopTime) / 1000000.0;
     lastLoopTime = currentTime;
@@ -283,7 +283,7 @@ void loop() {
     setMotor1(pwm1);
     setMotor2(pwm2);
     
-    if (driveCount >= 10) {
+    if (driveCount >= 5) {
       float rpm1 = calcRPM(encCount1, prevCount1, driveTime);
       float rpm2 = calcRPM(encCount2, prevCount2, driveTime);
       aveRPM = (rpm1 + rpm2) * 0.5;
