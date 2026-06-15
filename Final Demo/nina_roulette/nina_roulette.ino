@@ -1,4 +1,4 @@
-#include "Arduino_BMI270_BMM150.h"
+#include "customIMU.h"
 #include <ArduinoBLE.h>
 #include <string.h>
 #define BUFFER_SIZE 20
@@ -6,7 +6,7 @@
 // FSM code??
 
 //dt variables
-const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
+const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
 
 struct PID_t {
@@ -90,8 +90,8 @@ const float RAMP_CLIMB_SPEED   =  0.6;  // same scale as the BLE forward command
 const float RAMP_DESCEND_SPEED = -0.5;  // same scale as the BLE backward command
 
 // counts = (distance_m / wheel_circumference_m) * 1920  -- tune these on the real ramp
-float RAMP_CLIMB_COUNTS   = 4500;
-float RAMP_DESCEND_COUNTS = 4500;
+float RAMP_CLIMB_COUNTS   = 11520; //4500 
+float RAMP_DESCEND_COUNTS = 11520; //4500
 //--------------------------------------------------------------------
 
 // Define a custom BLE service and characteristic --------------------
@@ -244,35 +244,35 @@ void setMotor2(int pwm) {
 }
 
 // ── BLE ──────────────────────────────────────────
-void handleBLE() {
-    BLEDevice central = BLE.central();  // Wait for a BLE central to connect
+// void handleBLE() {
+//     BLEDevice central = BLE.central();  // Wait for a BLE central to connect
 
-    if (central) {
-      int command = 0;  // TODO: dont need this since else doesnt use it
+//     if (central) {
+//       int command = 0;  // TODO: dont need this since else doesnt use it
 
-      // Keep running while connected
-      if (central.connected()) {
-        // Check if the characteristic was written
-        if (customCharacteristic.written()) {
-          // Read the single byte directly
-          const unsigned char *receivedData = customCharacteristic.value();
-          int command = receivedData[0];
+//       // Keep running while connected
+//       if (central.connected()) {
+//         // Check if the characteristic was written
+//         if (customCharacteristic.written()) {
+//           // Read the single byte directly
+//           const unsigned char *receivedData = customCharacteristic.value();
+//           int command = receivedData[0];
 
-          customCharacteristic.writeValue("Data received");
-          driveCommand = setDriveWithFlutter(command); // adds pwm
-          turnPWM  = setTurnWithFlutter(command);
-          // Reset errors so derivative doesn't spike on new command
-        //   drivePID.Error0 = 0;
-        //   drivePID.Error1 = 0;
-          drivePID.ErrorInt = 0;
-        }
-      }
-      else {
-        driveCommand = 0.0;
-        turnPWM = 0.0;  //setDifPWMWithFlutter(command);
-      }
-    }
-}
+//           customCharacteristic.writeValue("Data received");
+//           driveCommand = setDriveWithFlutter(command); // adds pwm
+//           turnPWM  = setTurnWithFlutter(command);
+//           // Reset errors so derivative doesn't spike on new command
+//         //   drivePID.Error0 = 0;
+//         //   drivePID.Error1 = 0;
+//           drivePID.ErrorInt = 0;
+//         }
+//       }
+//       else {
+//         driveCommand = 0.0;
+//         turnPWM = 0.0;  //setDifPWMWithFlutter(command);
+//       }
+//     }
+// }
 // ── PID Stoff ─────────────────────────────────────────────────────
 void PID_Init(PID_t &pid) {
   pid.Actual = 0;
@@ -311,27 +311,27 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(startButtonPin, INPUT_PULLUP);
 
-  if (!BLE.begin()) {
-    //Serial.println("Starting BLE failed!");
-    while (1)
-      ;
-  }
+  // if (!BLE.begin()) {
+  //   //Serial.println("Starting BLE failed!");
+  //   while (1)
+  //     ;
+  // }
 
-  // Set the device name and local name
-  BLE.setLocalName("NINA");
-  BLE.setDeviceName("NINA");
+  // // Set the device name and local name
+  // BLE.setLocalName("NINA");
+  // BLE.setDeviceName("NINA");
 
-  // Add the characteristic to the service
-  customService.addCharacteristic(customCharacteristic);
+  // // Add the characteristic to the service
+  // customService.addCharacteristic(customCharacteristic);
 
-  // Add the service
-  BLE.addService(customService);
+  // // Add the service
+  // BLE.addService(customService);
 
-  // Set an initial value for the characteristic
-  customCharacteristic.writeValue("Waiting for data");
+  // // Set an initial value for the characteristic
+  // customCharacteristic.writeValue("Waiting for data");
 
-  // Start advertising the service
-  BLE.advertise();
+  // // Start advertising the service
+  // BLE.advertise();
 
   //--- NINAS LAST FIGHTING CHANCE CODE BELOW ----------------------------
   pinMode(motor1in1, OUTPUT);
@@ -451,7 +451,7 @@ void loop() {
 
       switch (rampPhase) {
         case RAMP_IDLE:
-          handleBLE();   // BLE only active before the run is triggered
+          //handleBLE();   // BLE only active before the run is triggered
           if (buttonPrev == HIGH && buttonNow == LOW) {
             rampPhase = RAMP_CLIMB;
             driveEnc1 = 0;
