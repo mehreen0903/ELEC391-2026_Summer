@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 60, db1r = 60;  //old f is 36
-int db2f = 60, db2r = 60;  //old f is 35
+int db1f = 65, db1r = 65;  //old f is 36
+int db2f = 65, db2r = 65;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -143,10 +143,10 @@ float angle(float dt_seconds) {
 float setDriveWithFlutter(int data) {
   switch (data) {
     case 1:        //FORWARD
-      return 0.6;  //max rpm is 300 ish
+      return 0.7;  //max rpm is 300 ish
       break;
     case 3:  //BACKWARDS
-      return -0.5; //bc of unequal dbr
+      return -0.65; //bc of unequal dbr
       break;
     case 2:  //LEFT
       return 0.0;
@@ -357,7 +357,7 @@ void setup() {
 
   PID_Init(turnPID); 
   turnPID = {
-    .Kp = 10.0,
+    .Kp = 15.0,
     .Ki = 0,
     .Kd = 0,
     .TargetDefault = 0, // default target speed
@@ -455,8 +455,8 @@ void loop() {
     //     anglePID.Target = -drivePID.Output + anglePID.TargetDefault;
     //   }
 
-      // driveCount = 0;
-      // driveTime = 0; //dt for drive pid
+      driveCount = 0;
+      driveTime = 0; //dt for drive pid
     }
   }
 }
