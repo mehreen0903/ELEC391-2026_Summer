@@ -1,4 +1,4 @@
-#include "Arduino_BMI270_BMM150.h"
+#include "customIMU.h"      //"Arduino_BMI270_BMM150.h"
 #include <ArduinoBLE.h>
 #include <string.h>
 #define BUFFER_SIZE 20
