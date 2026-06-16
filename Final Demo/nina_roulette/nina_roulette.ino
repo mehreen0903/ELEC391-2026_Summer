@@ -3,7 +3,7 @@
 #include <string.h>
 #define BUFFER_SIZE 20
 
-// FSM code??
+// FSM code
 
 //dt variables
 const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
@@ -41,8 +41,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 65, db1r = 65;  //old f is 36
-int db2f = 65, db2r = 65;  //old f is 35
+int db1f = 70, db1r = 70;  //old f is 36
+int db2f = 70, db2r = 70;  //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -79,19 +79,20 @@ float driveCommand = 0;
 // Ramp vars----------------------------------------------------------
 const int startButtonPin = 4;   // free digital pin, wire button to GND
 bool buttonPrev = HIGH;
+float rampAngle = 0;
 
 enum RampPhase { RAMP_IDLE, RAMP_CLIMB, RAMP_HOLD, RAMP_DESCEND, RAMP_DONE };
 RampPhase rampPhase = RAMP_IDLE;
 
 float holdTimer = 0;
-const float HOLD_DURATION = 6.5;        // seconds, mid-window of the 5-8s requirement
+const float HOLD_DURATION = 5;        // seconds, mid-window of the 5-8s requirement
 
-const float RAMP_CLIMB_SPEED   =  0.6;  // same scale as the BLE forward command
+const float RAMP_CLIMB_SPEED   =  0.3;  // same scale as the BLE forward command
 const float RAMP_DESCEND_SPEED = -0.5;  // same scale as the BLE backward command
 
 // counts = (distance_m / wheel_circumference_m) * 1920  -- tune these on the real ramp
-float RAMP_CLIMB_COUNTS   = 11520; //4500 
-float RAMP_DESCEND_COUNTS = 11520; //4500
+float RAMP_CLIMB_COUNTS   = 2500; //3840; //4500 
+float RAMP_DESCEND_COUNTS = 2500; //3840; //4500
 //--------------------------------------------------------------------
 
 // Define a custom BLE service and characteristic --------------------
@@ -244,36 +245,44 @@ void setMotor2(int pwm) {
 }
 
 // ── BLE ──────────────────────────────────────────
-// void handleBLE() {
-//     BLEDevice central = BLE.central();  // Wait for a BLE central to connect
+void handleBLE() {
+    BLEDevice central = BLE.central();  // Wait for a BLE central to connect
+    if (central) {
+      int command = 0;  // TODO: dont need this since else doesnt use it
+      // Keep running while connected
+      if (central.connected()) {
+        // Check if the characteristic was written
+        if (customCharacteristic.written()) {
+          // Read the single byte directly
+          const unsigned char *receivedData = customCharacteristic.value();
+          int command = receivedData[0];
+          customCharacteristic.writeValue("Data received");
+          driveCommand = setDriveWithFlutter(command); // adds pwm
+          turnPWM  = setTurnWithFlutter(command);
 
-//     if (central) {
-//       int command = 0;  // TODO: dont need this since else doesnt use it
+          if (command == 8 && rampPhase == RAMP_IDLE) {  // change 1 to whatever trigger value you want
+            rampPhase = RAMP_CLIMB;
+            driveEnc1 = 0;
+            driveEnc2 = 0;
+          } else if (command == 8 && rampPhase == RAMP_HOLD) {
+            rampAngle = 5;
+          }
 
-//       // Keep running while connected
-//       if (central.connected()) {
-//         // Check if the characteristic was written
-//         if (customCharacteristic.written()) {
-//           // Read the single byte directly
-//           const unsigned char *receivedData = customCharacteristic.value();
-//           int command = receivedData[0];
-
-//           customCharacteristic.writeValue("Data received");
-//           driveCommand = setDriveWithFlutter(command); // adds pwm
-//           turnPWM  = setTurnWithFlutter(command);
-//           // Reset errors so derivative doesn't spike on new command
-//         //   drivePID.Error0 = 0;
-//         //   drivePID.Error1 = 0;
-//           drivePID.ErrorInt = 0;
-//         }
-//       }
-//       else {
-//         driveCommand = 0.0;
-//         turnPWM = 0.0;  //setDifPWMWithFlutter(command);
-//       }
-//     }
-// }
+          // Reset errors so derivative doesn't spike on new command
+          //   drivePID.Error0 = 0;
+          //   drivePID.Error1 = 0;
+            drivePID.ErrorInt = 0;
+          
+      }
+      else {
+        driveCommand = 0.0;
+        turnPWM = 0.0;  //setDifPWMWithFlutter(command);
+      }
+    }
+  }
+}
 // ── PID Stoff ─────────────────────────────────────────────────────
+
 void PID_Init(PID_t &pid) {
   pid.Actual = 0;
   pid.Target = 0;
@@ -311,27 +320,21 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(startButtonPin, INPUT_PULLUP);
 
-  // if (!BLE.begin()) {
-  //   //Serial.println("Starting BLE failed!");
-  //   while (1)
-  //     ;
-  // }
-
-  // // Set the device name and local name
-  // BLE.setLocalName("NINA");
-  // BLE.setDeviceName("NINA");
-
-  // // Add the characteristic to the service
-  // customService.addCharacteristic(customCharacteristic);
-
-  // // Add the service
-  // BLE.addService(customService);
-
-  // // Set an initial value for the characteristic
-  // customCharacteristic.writeValue("Waiting for data");
-
-  // // Start advertising the service
-  // BLE.advertise();
+  if (!BLE.begin()) {
+    //Serial.println("Starting BLE failed!");
+    while (1);
+  }
+  // Set the device name and local name
+  BLE.setLocalName("NINA");
+  BLE.setDeviceName("NINA");
+  // Add the characteristic to the service
+  customService.addCharacteristic(customCharacteristic);
+  // Add the service
+  BLE.addService(customService);
+  // Set an initial value for the characteristic
+  customCharacteristic.writeValue("Waiting for data");
+  // Start advertising the service
+  BLE.advertise();
 
   //--- NINAS LAST FIGHTING CHANCE CODE BELOW ----------------------------
   pinMode(motor1in1, OUTPUT);
@@ -350,27 +353,26 @@ void setup() {
 
   if (!IMU.begin()) {
     // Serial.println("Failed to initialize IMU!");
-    while (1)
-      ;
+    while (1);
   }
 
   PID_Init(anglePID);  // For DB = 58: 2.1, 6, 0.08, 1.18, 100, 16
   anglePID = {
-    .Kp = 2.1, //2.1
+    .Kp = 3, //2.1
     .Ki = 8,//7.3, //6
-    .Kd = 0.15,//0.06, //0.08
-    .TargetDefault = 1.22,//1.18 // target angle
+    .Kd = 0.05,//0.06, //0.08
+    .TargetDefault = 0.9,//1.18 // target angle
     .OutputMax = 100,
-    .ErrorIntMax = 12.5,//10, //16
+    .ErrorIntMax = 12,//10, //16
   };
 
   PID_Init(drivePID); 
   drivePID = {
-    .Kp = 2.5,
-    .Ki = 0.75,
-    .Kd = 0.005,
+    .Kp = 2,//2.5
+    .Ki = 0.75, 
+    .Kd = 0.005, //0.005
     .TargetDefault = 0, // default target speed
-    .OutputMax = 2, //max target angle
+    .OutputMax = 2.0, //max target angle
     .ErrorIntMax = 2.67
   };
 
@@ -400,7 +402,6 @@ void loop() {
   if (currentTime - lastLoopTime >= LOOP_TIME_MS) { //LOOP_TIME_MS currently set to 10000 microseconds (10 ms)
     float dt_seconds = (currentTime - lastLoopTime) / 1000000.0; // Convert to seconds
     lastLoopTime = currentTime; //iterate time
-    //const float dt_seconds = 0.005f; //hard code dt_seconds to 5 ms to avoid integer rounding jitter
     
     driveCount++;
     driveTime += dt_seconds;
@@ -410,7 +411,7 @@ void loop() {
     if (tilt_angle >= -30.0 && tilt_angle <= 30.0) {
       anglePID.Actual = tilt_angle;
       updatePID(anglePID, dt_seconds); 
-
+      //Serial.println(anglePID.Actual);
       avePWM = anglePID.Output;
       pwm1 = avePWM + (difPWM / 2.0f) ;
       pwm2 = avePWM - (difPWM / 2.0f) ;
@@ -443,74 +444,84 @@ void loop() {
       updatePID(drivePID, driveTime);
       updatePID(turnPID, driveTime);
       
-      anglePID.Target = drivePID.Output + anglePID.TargetDefault; //clamped drivepid.output to 3 deg
+      anglePID.Target = drivePID.Output + anglePID.TargetDefault + rampAngle; //clamped drivepid.output to 3 deg
+      handleBLE();
       
 // --- Autonomous ramp sequence (overrides BLE during the run) ---
       float travelled = abs((driveEnc1 + driveEnc2) / 2.0f);
-      bool buttonNow = digitalRead(startButtonPin);
+      //bool buttonNow = digitalRead(startButtonPin);
 
       switch (rampPhase) {
         case RAMP_IDLE:
-          //handleBLE();   // BLE only active before the run is triggered
-          if (buttonPrev == HIGH && buttonNow == LOW) {
-            rampPhase = RAMP_CLIMB;
-            driveEnc1 = 0;
-            driveEnc2 = 0;
-          }
+          anglePID.Target = drivePID.Output + anglePID.TargetDefault;
+        //   if (buttonPrev == HIGH && buttonNow == LOW) {
+        //     rampPhase = RAMP_CLIMB;
+          driveEnc1 = 0;
+          driveEnc2 = 0;
+        //   }
           break;
 
         case RAMP_CLIMB:
-          driveCommand = RAMP_CLIMB_SPEED;
+          //anglePID.Target = anglePID.TargetDefault + 5.5;  // lean forward 2.5°
           turnPWM = 0;
+          drivePID.OutputMax = 10;
+          drivePID.Target = RAMP_CLIMB_SPEED;
+          digitalWrite(LED_BUILTIN, HIGH);
           if (travelled >= RAMP_CLIMB_COUNTS) {
-            driveCommand = 0;
-            drivePID.ErrorInt = 0;   // avoid an integral kick at the transition
+            drivePID.ErrorInt = 0;
             driveEnc1 = 0;
             driveEnc2 = 0;
             holdTimer = 0;
+            //drivePID.OutputMax = 15;
             rampPhase = RAMP_HOLD;
           }
           break;
 
         case RAMP_HOLD:
-          driveCommand = 0;
+          //drivePID.Kp = 6;
+          drivePID.OutputMax = 15;
+          drivePID.Kp = 4;
+          //anglePID.Target = 6.9;
+          if (digitalRead(LED_BUILTIN)==HIGH) {
+            digitalWrite(LED_BUILTIN, LOW);
+          }
+          else {
+            digitalWrite(LED_BUILTIN, HIGH);
+          }
           turnPWM = 0;
-          holdTimer += driveTime;
+          holdTimer += driveTime; //in secs
           if (holdTimer >= HOLD_DURATION) {
             drivePID.ErrorInt = 0;
             driveEnc1 = 0;
             driveEnc2 = 0;
+            rampAngle = 0;
             rampPhase = RAMP_DESCEND;
+          //  digitalWrite(LED_BUILTIN, LOW);
           }
           break;
 
         case RAMP_DESCEND:
-          driveCommand = RAMP_DESCEND_SPEED;
+          drivePID.Target = -0.4;
           turnPWM = 0;
+          anglePID.Target = anglePID.TargetDefault;
+          digitalWrite(LED_BUILTIN, HIGH);
           if (travelled >= RAMP_DESCEND_COUNTS) {
-            driveCommand = 0;
             rampPhase = RAMP_DONE;
           }
           break;
 
         case RAMP_DONE:
-          driveCommand = 0;
+          drivePID.Target = 0;
+          drivePID.OutputMax = 2;
           turnPWM = 0;
+          digitalWrite(LED_BUILTIN, LOW);
+          rampPhase = RAMP_IDLE;
           break;
+
+        default:
+          rampPhase = RAMP_IDLE;
       }
-      buttonPrev = buttonNow;
-      // -----------------------------------------------------------------
-
-      if (turnPWM != 0) {
-        difPWM = turnPWM;
-      } else {
-        difPWM = turnPID.Output;
-      }
-
-      drivePID.Target = driveCommand;
-
-      driveCount = 0;
-      driveTime = 0;
+      //buttonPrev = buttonNow;
     }
   }
 }
