@@ -1,3 +1,5 @@
+// SHOWTIME: BALANCES FOR 30 SECONDS WITH +/- 2 CM
+// 11.3 V
 #include "customIMU.h"
 
 struct PID_t {
@@ -34,8 +36,8 @@ const int enc2B = 10;
 // ── PWM / Deadband ────────────────────────────────────────────────
 int pwm1 = 0;
 int pwm2 = 0;
-int db1f = 65, db1r = 65; //old f is 36
-int db2f = 67, db2r = 65; //old f is 35
+int db1f = 70, db1r = 70; //old f is 36
+int db2f = 70, db2r = 70; //old f is 35
 
 // ── Encoder counts (volatile = modified in ISR) ───────────────────
 volatile long encCount1 = 0;
@@ -142,12 +144,12 @@ float angle(float dt_seconds) {
 
     degreesAccY = -1 * atan(ay / az) * 180 / PI;
 
-    angleGyroX = angleComp + gx * (dt_seconds);
+    angleGyroX = angleComp + (gx-0.3) * (dt_seconds);
     angleComp = (k * angleGyroX) + ((1.0f - k) * degreesAccY);
 
     //turnAngle += (gz+0.06f) * dt_seconds;
     //Serial.println(gz);
-    Serial.println(gx);
+    //Serial.println(gx);
   }
   return angleComp;
 }
