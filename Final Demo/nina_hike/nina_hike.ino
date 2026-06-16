@@ -3,7 +3,7 @@
 #include <string.h>
 #define BUFFER_SIZE 20
 
-// Should be ramp code
+// Should be ramp code but isnt
 
 //dt variables
 const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
