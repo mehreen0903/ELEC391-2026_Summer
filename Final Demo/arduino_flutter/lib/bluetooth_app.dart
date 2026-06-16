@@ -350,10 +350,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     ElevatedButton.icon(
                       onPressed: (_isConnected && !_isSequenceRunning)
                           ? () => _runCustomSequence([
-                                SequenceStep(command: 8, duration: const Duration(seconds: 5)), // +5 for 5 seconds
-                                SequenceStep(command: 11, duration: const Duration(seconds: 10)), // +10 for 15 seconds
-                                SequenceStep(command: 10, duration: const Duration(seconds: 8)), // hold 10 for 10 seconds
-                                SequenceStep(command: 9, duration: const Duration(seconds: 8)), // -5 for 8 seconds
+                                SequenceStep(command: 8, duration: const Duration(seconds: 1)), // +5 for 1 second
+                                SequenceStep(command: 11, duration: const Duration(seconds: 10)), // +10 for 10 seconds
+                                SequenceStep(command: 10, duration: const Duration(seconds: 8)), // hold 10 for 8 seconds
+                                SequenceStep(command: 9, duration: const Duration(seconds: 5)), // -5 for 5 seconds
                               ])
                           : null,
                       icon: const Icon(Icons.play_circle_filled_rounded),
