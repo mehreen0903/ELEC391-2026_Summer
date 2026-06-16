@@ -5,7 +5,7 @@
 #define BUFFER_SIZE 20
 
 //dt variables
-const unsigned long LOOP_TIME_MS = 10000; //target loop time = 10 MICROSECONDS
+const unsigned long LOOP_TIME_MS = 5000; //target loop time = 10 MICROSECONDS
 unsigned long lastLoopTime = 0;
 
 struct PID_t {
