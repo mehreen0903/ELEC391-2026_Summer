@@ -1,5 +1,5 @@
 // SHOWTIME: BALANCES FOR 30 SECONDS WITH +/- 2 CM
-// 11.3 V
+// 11.3 V on rails 
 #include "customIMU.h"
 
 struct PID_t {
