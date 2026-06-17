@@ -321,6 +321,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 // -10: 12
                 // -5: 9
                 // stop: 5
+                // +15: 13
+                // stay 15: 15
+                // -15: 14
                 //BUTTON FOR 5 DEGREE RAMP
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -328,8 +331,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     ElevatedButton.icon(
                       onPressed: (_isConnected && !_isSequenceRunning)
                           ? () => _runCustomSequence([
-                                SequenceStep(command: 8, duration: const Duration(seconds: 15)), // +5 for 15 seconds
-                                SequenceStep(command: 9, duration: const Duration(seconds: 15)), // -5 for 15 seconds
+                                SequenceStep(command: 8, duration: const Duration(seconds: 10)), // +5 for 15 seconds
+                                SequenceStep(command: 9, duration: const Duration(seconds: 5)), // -5 for 15 seconds
                               ])
                           : null,
                       icon: const Icon(Icons.play_circle_filled_rounded),
@@ -353,11 +356,84 @@ class _MyHomePageState extends State<MyHomePage> {
                                 SequenceStep(command: 8, duration: const Duration(seconds: 1)), // +5 for 1 second
                                 SequenceStep(command: 11, duration: const Duration(seconds: 10)), // +10 for 10 seconds
                                 SequenceStep(command: 10, duration: const Duration(seconds: 8)), // hold 10 for 8 seconds
+                                SequenceStep(command: 12, duration: const Duration(milliseconds: 500)), // -10 for 0.5 second
                                 SequenceStep(command: 9, duration: const Duration(seconds: 5)), // -5 for 5 seconds
                               ])
                           : null,
                       icon: const Icon(Icons.play_circle_filled_rounded),
                       label: const Text("Run 10 Ramp"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                //BUTTON FOR 15 DEGREE RAMP
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: (_isConnected && !_isSequenceRunning)
+                          ? () => _runCustomSequence([
+                                SequenceStep(command: 8, duration: const Duration(seconds: 1)), // +5 for 1 second
+                                SequenceStep(command: 11, duration: const Duration(seconds: 3)), // +10 for 1 seconds
+                                SequenceStep(command: 13, duration: const Duration(seconds: 4)), // +15 for 3 seconds
+                                SequenceStep(command: 15, duration: const Duration(seconds: 6)), // stay 15 for 6 sec
+                                SequenceStep(command: 14, duration: const Duration(seconds: 3)), // -15 for 3 sec
+                                SequenceStep(command: 12, duration: const Duration(milliseconds: 1000)), // -10 for 0.5 sec
+                                SequenceStep(command: 9, duration: const Duration(milliseconds: 1000)), // -5 for 0.5 sec
+                              ])
+                          : null,
+                      icon: const Icon(Icons.play_circle_filled_rounded),
+                      label: const Text("Run 15 Ramp"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 25),
+
+                //button for 90 degree left
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: (_isConnected && !_isSequenceRunning)
+                          ? () => _runCustomSequence([
+                                SequenceStep(command: 2, duration: const Duration(seconds: 1)), // left for 1 second
+                                SequenceStep(command: 5, duration: const Duration(seconds: 4)), // stop for 4 seconds
+                                SequenceStep(command: 2, duration: const Duration(seconds: 1)), // left for 1 second
+                              ])
+                          : null,
+                      icon: const Icon(Icons.play_circle_filled_rounded),
+                      label: const Text("90 Left"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      ),
+                    ),
+                    //const SizedBox(height: 10),
+                    const SizedBox(width: 15),
+
+                    //button for 90 degree right
+                    ElevatedButton.icon(
+                      onPressed: (_isConnected && !_isSequenceRunning)
+                          ? () => _runCustomSequence([
+                                SequenceStep(command: 4, duration: const Duration(seconds: 1)), // right for 1 second
+                                SequenceStep(command: 5, duration: const Duration(seconds: 4)), // stop for 4 seconds
+                                SequenceStep(command: 4, duration: const Duration(seconds: 1)), // right for 1 second
+                              ])
+                          : null,
+                      icon: const Icon(Icons.play_circle_filled_rounded),
+                      label: const Text("90 Right"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -374,32 +450,32 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     _buildTimedSignalButton(
                       icon: Icons.arrow_upward,
-                      label: "Forward (9s)",
+                      label: "Forward (6s)",
                       command: 1, // FORWARD
-                      duration: const Duration(milliseconds: 9000), // Adjust runtime here
+                      duration: const Duration(milliseconds: 6000), // Adjust runtime here
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 3),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildTapButton(
-                      icon: Icons.arrow_back,
-                      command: 2, //LEFT
-                    ),
-                    const SizedBox(width: 10),
+                    // _buildTapButton(
+                    //   icon: Icons.arrow_back,
+                    //   command: 2, //LEFT
+                    // ),
+                    //const SizedBox(width: 10),
                     _buildTimedSignalButton(
                       icon: Icons.arrow_downward,
-                      label: "Backward (9s)",
+                      label: "Backward (6s)",
                       command: 3, // BACKWARD
-                      duration: const Duration(milliseconds: 9000), // Adjust runtime here
+                      duration: const Duration(milliseconds: 6000), // Adjust runtime here
                     ),
-                    const SizedBox(width: 10),
-                    _buildTapButton(
-                      icon: Icons.arrow_forward,
-                      command: 4, //RIGHT
-                    ),
+                    //const SizedBox(width: 10),
+                    // _buildTapButton(
+                    //   icon: Icons.arrow_forward,
+                    //   command: 4, //RIGHT
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 25),
@@ -434,27 +510,28 @@ class _MyHomePageState extends State<MyHomePage> {
                       command: 4, 
                       duration: const Duration(milliseconds: 1000), // Right 
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+                  //],
+                //),
+                //const SizedBox(height: 20),
+                    const SizedBox(width: 15),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                //Row(
+                  //mainAxisAlignment: MainAxisAlignment.center,
+                  //children: [
                     ElevatedButton(
                       onPressed: _isConnected ? () => _sendCommand(5) : null,
                       child: const Text('Stop'), //changed from Stop A
                     ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _isConnected ? () => _sendCommand(6) : null,
-                      child: const Text('Send B'),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _isConnected ? () => _sendCommand(7) : null,
-                      child: const Text('Send C'),
-                    ),
+                    // const SizedBox(width: 10),
+                    // ElevatedButton(
+                    //   onPressed: _isConnected ? () => _sendCommand(6) : null,
+                    //   child: const Text('Send B'),
+                    // ),
+                    // const SizedBox(width: 10),
+                    // ElevatedButton(
+                    //   onPressed: _isConnected ? () => _sendCommand(7) : null,
+                    //   child: const Text('Send C'),
+                    // ),
                   ],
                 ),
               ],
@@ -466,6 +543,9 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+
+
+
 
 
 
@@ -749,6 +829,25 @@ class _MyHomePageState extends State<MyHomePage> {
 //                   ],
 //                 ),
 
+//                 //buttons for up and down 15 degree ramp
+//                 Row(
+//                   mainAxisAlignment: MainAxisAlignment.center,
+//                   children: [
+//                     ElevatedButton.icon(
+//                       onPressed: _isConnected ? () => _sendCommand(14) : null, // Command 13
+//                       icon: const Icon(Icons.remove),
+//                       label: const Text("-15 Target"),
+//                     ),
+//                     const SizedBox(width: 15),
+//                     ElevatedButton.icon(
+//                       onPressed: _isConnected ? () => _sendCommand(13) : null, // Command 11
+//                       icon: const Icon(Icons.add),
+//                       label: const Text("+15 Target"),
+//                     ),
+//                     const SizedBox(width: 15),
+//                   ],
+//                 ),
+
 //                 //stop buttons for each ramp section
 //                 Row(
 //                   mainAxisAlignment: MainAxisAlignment.center,
@@ -757,6 +856,12 @@ class _MyHomePageState extends State<MyHomePage> {
 //                       onPressed: _isConnected ? () => _sendCommand(10) : null, // Command 10
 //                       icon: const Icon(Icons.add),
 //                       label: const Text("stop ramp"),
+//                     ),
+//                     const SizedBox(width: 15),
+//                     ElevatedButton.icon(
+//                       onPressed: _isConnected ? () => _sendCommand(15) : null, // Command 10
+//                       icon: const Icon(Icons.add),
+//                       label: const Text("stop ramp 15"),
 //                     ),
 //                     const SizedBox(width: 15),
 //                   ]
