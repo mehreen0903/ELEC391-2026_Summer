@@ -1,6 +1,7 @@
-// // SHOWTIME: 
-// // Does push test fine on both ways
-// // 50 cm run +/- 3cm: 11.2V - 11.36V, demo: 11.0V - 10.95V
+// SHOWTIME: 
+// Does push test fine on both ways
+// Turns well +/- 3 deg: 11.08V, demo: 11.33V
+
 
 #include "customIMU.h"
 #include <ArduinoBLE.h>
@@ -181,10 +182,10 @@ float setTurnWithFlutter(int data) {
       return 0.0;
       break;
     case 2:  //LEFT
-      return 10.0;
+      return 6.0;
       break;
     case 4:  //RIGHT
-      return -10.0;
+      return -6.0;
       break;
     case 5:  //A OR STOP
       return 0.0;
@@ -347,7 +348,7 @@ void setup() {
     .Kp = 2.1, //2.1
     .Ki = 8,//7.3, //6
     .Kd = 0.15,//0.06, //0.08
-    .TargetDefault = 0.95, // target angle
+    .TargetDefault = 1.18, // target angle
     .OutputMax = 100,
     .ErrorIntMax = 12,//10, //16
   };
@@ -364,9 +365,9 @@ void setup() {
 
   PID_Init(turnPID); 
   turnPID = {
-    .Kp = 15.0,
+    .Kp = 10.0,
     .Ki = 1.0,
-    .Kd = 0,
+    .Kd = 0.0,
     .TargetDefault = 0, // default target speed
     .OutputMax = 15.0, //max target angle
     .ErrorIntMax = 15.0
@@ -397,7 +398,7 @@ void loop() {
 
     //right turn = negative turnAngle
     if(turnPWM != 0 && ((turnAngle < 41) && (-turnAngle < 41))){
-      //turnPID.ErrorInt = 0;
+      turnPID.ErrorInt = 0;
       difPWM = turnPWM;
     } else {
       difPWM = turnPID.Output;
@@ -457,7 +458,7 @@ void loop() {
 
       float aveEnc = -(driveEnc1 + driveEnc2)/2.0f;
 
-      if(driveCommand != 0 && ((aveEnc < 3100) && (-aveEnc < 3200))){
+      if(driveCommand != 0 && ((aveEnc < 3000) && (-aveEnc < 3200))){
         drivePID.Target = driveCommand;                        
       } else {
         //drivePID.ErrorInt = 0;
